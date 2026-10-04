@@ -1,0 +1,11 @@
+node_modules
+dist
+dev-dist
+*.local
+
+# secrets: database password, push keys
+.env
+
+# local tool state
+.vercel
+supabase/.temp

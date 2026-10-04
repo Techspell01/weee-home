@@ -1,0 +1,32 @@
+{
+  "name": "weee",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "icons": "node scripts/make-icons.mjs",
+    "dev:phone": "vite --host",
+    "deploy": "npm test && npx vercel deploy --prod --yes --build-env VITE_SUPABASE_URL=https://nnhfxfuekfnthponfzci.supabase.co --build-env VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ACt_raPLuNeUVMyqdrohqg_lGmJcyqO --build-env VITE_VAPID_PUBLIC_KEY=BNY6cgJ4ilPbjkSV-3kzqErrRBx3S7vjfziwO-ewBNjJRvJYsmtdZhBWcVqNHINZJUpJIHTLbFCA-XSA3zgpMzQ"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "sharp": "^0.35.5",
+    "vite": "^8.3.2",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.3",
+    "web-push": "^3.6.7",
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1"
+  },
+  "description": "Weee: a shared home app for couples. Plans and schedules, a live shopping list, pantry low-stock alerts, spending and splits."
+}
