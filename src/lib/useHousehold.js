@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 // Everything a household shares. Each table is fetched once, then refetched
 // whenever Supabase Realtime reports a change, so every phone stays in sync.
 const TABLES = {
-  members: { table: 'household_members', select: 'user_id, display_name, joined_at, share_location, last_seen', order: 'joined_at' },
+  members: { table: 'household_members', select: 'user_id, display_name, joined_at, share_location, last_seen, chat_read_at', order: 'joined_at' },
   items: { table: 'items', select: '*', order: 'added_at' },
   pantry: { table: 'pantry', select: '*', order: 'name' },
   expenses: { table: 'expenses', select: '*', order: 'created_at' },
@@ -12,9 +12,11 @@ const TABLES = {
   places: { table: 'places', select: '*', order: 'created_at' },
   locations: { table: 'member_locations', select: '*', order: 'updated_at' },
   presence: { table: 'place_presence', select: '*', order: 'changed_at' },
+  // newest 300 messages, shown oldest first
+  messages: { table: 'messages', select: '*', order: 'created_at', desc: true, limit: 300 },
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item or a plan,
 // or arrives at / leaves a saved place ('presence').
@@ -24,15 +26,18 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('connecting');
   const [online, setOnline] = useState([]);
+  const [typing, setTyping] = useState({}); // user id -> last 'typing' signal time
+  const channelRef = useRef(null);
   const timers = useRef({});
   const onRemoteInsertRef = useRef(onRemoteInsert);
   onRemoteInsertRef.current = onRemoteInsert;
 
   const refresh = useCallback(async key => {
     const t = TABLES[key];
-    const { data: rows, error } = await supabase
-      .from(t.table).select(t.select).eq('household_id', householdId).order(t.order);
-    if (!error) setData(d => ({ ...d, [key]: rows }));
+    let q = supabase.from(t.table).select(t.select).eq('household_id', householdId).order(t.order, { ascending: !t.desc });
+    if (t.limit) q = q.limit(t.limit);
+    const { data: rows, error } = await q;
+    if (!error) setData(d => ({ ...d, [key]: t.desc ? rows.reverse() : rows }));
   }, [householdId]);
 
   const refreshAll = useCallback(async () => {
@@ -52,6 +57,10 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
 
     const channel = supabase.channel(`household:${householdId}`, { config: { presence: { key: me } } });
     channel.on('presence', { event: 'sync' }, () => setOnline(Object.keys(channel.presenceState())));
+    channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
+      if (payload?.user && payload.user !== me) setTyping(t => ({ ...t, [payload.user]: Date.now() }));
+    });
+    channelRef.current = channel;
     for (const [key, t] of Object.entries(TABLES)) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table: t.table }, payload => {
         const row = payload.new;
@@ -59,6 +68,10 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
         if (payload.eventType === 'INSERT') {
           if (key === 'items' && row.added_by !== me) onRemoteInsertRef.current?.(key, row);
           if (key === 'plans' && row.created_by !== me) onRemoteInsertRef.current?.(key, row);
+          if (key === 'messages' && row.user_id !== me) {
+            onRemoteInsertRef.current?.(key, row);
+            setTyping(t => ({ ...t, [row.user_id]: 0 })); // they sent it, so they stopped typing
+          }
         }
         // place_presence rows only change when someone really arrives or leaves
         if (key === 'presence' && payload.eventType === 'UPDATE' && row.user_id !== me) onRemoteInsertRef.current?.(key, row);
@@ -95,6 +108,7 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
     const pending = timers.current;
     return () => {
       clearInterval(beat);
+      channelRef.current = null;
       supabase.removeChannel(channel);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', refreshAll);
@@ -107,6 +121,15 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
     setData(d => ({ ...d, [key]: d[key].map(r => (r.id === id ? { ...r, ...changes } : r)) })), []);
   const drop = useCallback((key, pred) =>
     setData(d => ({ ...d, [key]: d[key].filter(r => !pred(r)) })), []);
+  const add = useCallback((key, row) => setData(d => ({ ...d, [key]: [...d[key], row] })), []);
 
-  return { ...data, online, loaded, status, refresh, patch, drop };
+  // Tell the others "I'm typing" (at most every 2 s); they show it for 4 s.
+  const lastTyping = useRef(0);
+  const sendTyping = useCallback(() => {
+    if (Date.now() - lastTyping.current < 2000) return;
+    lastTyping.current = Date.now();
+    channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { user: me } });
+  }, [me]);
+
+  return { ...data, online, typing, sendTyping, loaded, status, refresh, patch, drop, add };
 }

@@ -30,6 +30,9 @@ export const Icon = {
       <rect x="2.6" y="2.6" width={Math.max(1.5, 17.8 * (level ?? 0) / 100)} height="8.8" rx="1.8" fill={charging ? '#7DDB9B' : level != null && level <= 20 ? '#FF8A70' : 'currentColor'} />
     </svg>
   ),
+  discover: () => svg(<><circle cx="12" cy="12" r="9" /><path d="M15.6 8.4l-2 5.2-5.2 2 2-5.2z" /></>, 22, { strokeWidth: 2 }),
+  chat: () => svg(<path d="M4 11.5a7.5 7 0 0 1 15 0 7.5 7 0 0 1-10.6 6.4L4 19.5l1.4-3.6A6.8 6.8 0 0 1 4 11.5z" />, 22, { strokeWidth: 2 }),
+  send: () => svg(<><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></>, 20, { strokeWidth: 2.4 }),
   money: () => svg(<path d="M6 4h12M6 9h12M9 4c4 0 6 2 6 5s-2 5-6 5H7l8 7" />, 22, { strokeWidth: 2 }),
 };
 

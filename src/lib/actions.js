@@ -124,6 +124,25 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('places').delete().eq('id', place.id), 'places');
     },
 
+    // Chat
+    async sendMessage(body) {
+      const text = body.trim().slice(0, 2000);
+      if (!text) return false;
+      const temp = { id: `tmp-${Date.now()}`, household_id: householdId, user_id: me, body: text, created_at: now(), pending: true };
+      hh.add?.('messages', temp);
+      const ok = await run(supabase.from('messages').insert({ household_id: householdId, body: text }), 'messages');
+      if (ok) haptic('light');
+      return ok;
+    },
+    unsendMessage(m) {
+      hh.drop('messages', r => r.id === m.id);
+      return run(supabase.from('messages').delete().eq('id', m.id), 'messages');
+    },
+    markChatRead() {
+      return supabase.from('household_members').update({ chat_read_at: now() })
+        .eq('household_id', householdId).eq('user_id', me).then(() => hh.refresh('members'));
+    },
+
     renameMe(displayName) {
       return run(supabase.from('household_members').update({ display_name: displayName }).eq('household_id', householdId).eq('user_id', me), 'members');
     },

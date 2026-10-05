@@ -47,7 +47,7 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
     const who = await displayName(r.household_id, r.added_by);
     return {
       actor: r.added_by,
-      msg: { title: `${who} added ${r.name}`, body: r.qty ? `${r.qty} · Shopping list` : 'Shopping list', tag: `item-${r.id}`, url: '/' },
+      msg: { title: `${who} added ${r.name}`, body: r.qty ? `${r.qty} · Shopping list` : 'Shopping list', tag: `item-${r.id}`, url: '/?tab=list' },
     };
   }
   if (table === 'plans') {
@@ -60,8 +60,16 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
         title: r.owner ? `${who}'s schedule: ${r.title}` : `${who} planned: ${r.title}`,
         body: `${formatDate(r.plan_date)}${time}${where}`,
         tag: `plan-${r.id}`,
-        url: '/',
+        url: '/?tab=plans',
       },
+    };
+  }
+  if (table === 'messages') {
+    const who = await displayName(r.household_id, r.user_id);
+    const text = String(r.body ?? '');
+    return {
+      actor: r.user_id,
+      msg: { title: who, body: text.length > 160 ? text.slice(0, 157) + '…' : text, tag: `chat-${r.household_id}`, url: '/?tab=chat' },
     };
   }
   if (table === 'place_event') {
