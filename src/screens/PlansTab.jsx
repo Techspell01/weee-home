@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { KINDS, MY_KINDS, TOGETHER_KINDS, dayStrip, dayTitle, mapLink, sortPlans, timeRange, toDateString, whenLabel } from '../lib/plans.js';
-import { ConfirmButton, Empty, Icon } from '../components/ui.jsx';
+import { KINDS, MY_KINDS, TOGETHER_KINDS, dayStrip, dayTitle, formatTime, mapLink, monthCells, sortPlans, timeRange, toDateString, untilLabel, whenLabel } from '../lib/plans.js';
+import { BigValue, ConfirmButton, Empty, Icon, Ring } from '../components/ui.jsx';
 import { haptic } from '../lib/haptics.js';
 
 const IDEAS = 'ideas';
@@ -33,6 +33,34 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
   const people = [...hh.members].sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
   const comingUp = open.filter(p => !p.owner && p.plan_date && p.plan_date >= today && p.plan_date !== day).sort(sortPlans).slice(0, 6);
   const canEdit = p => !p.owner || p.owner === me;
+
+  // ---- summary tiles ----
+  const ours = p => !p.owner || p.owner === me;
+  const todays = hh.plans.filter(p => p.plan_date === today && ours(p));
+  const todaysDone = todays.filter(p => p.done).length;
+  const nowD = new Date(now);
+  const nowHM = `${String(nowD.getHours()).padStart(2, '0')}:${String(nowD.getMinutes()).padStart(2, '0')}`;
+  const next = open.filter(p => ours(p) && p.plan_date && (p.plan_date > today || (p.plan_date === today && (!p.plan_time || p.plan_time.slice(0, 5) >= nowHM)))).sort(sortPlans)[0];
+  const nextBig = !next ? { value: '–' }
+    : next.plan_time ? (([t, ap]) => ({ value: t, unit: ap }))(formatTime(next.plan_time).split(' '))
+    : { value: Number(next.plan_date.slice(8)), unit: new Date(next.plan_date + 'T00:00').toLocaleDateString('en-IN', { month: 'short' }) };
+  const months = [0, 1, 2].map(k => {
+    const d = new Date(nowD.getFullYear(), nowD.getMonth() + k, 1);
+    return { key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString('en-IN', { month: 'short' }), cells: monthCells(d.getFullYear(), d.getMonth()) };
+  });
+  const lastDay = months[2].cells[months[2].cells.length - 1];
+  const planDays = new Set(open.filter(ours).map(p => p.plan_date).filter(Boolean));
+  const ahead = open.filter(p => ours(p) && p.plan_date && p.plan_date >= today && p.plan_date <= lastDay);
+  const aheadDays = new Set(ahead.map(p => p.plan_date)).size;
+  const daysInView = months.flatMap(m => m.cells).filter(c => c && c >= today).length;
+
+  // header "+" jumps to the add form
+  const titleRef = useRef(null);
+  useEffect(() => {
+    const open = () => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(() => titleRef.current?.focus(), 400); };
+    window.addEventListener('weee:add', open);
+    return () => window.removeEventListener('weee:add', open);
+  }, []);
 
   function startEdit(p) {
     setEditingId(p.id);
@@ -89,8 +117,40 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
 
   return (
     <section>
-      <h2>Plans</h2>
-      <p className="sub">Your plans together, and each person's schedule for the day, so you both know who's busy when.</p>
+      <div className="bento">
+        <button type="button" className="tile" onClick={() => setDay(today)}>
+          <Ring value={todaysDone} total={todays.length || 1}>{todays.length - todaysDone}</Ring>
+          <div className="tile-title">Today</div>
+          <div className="tile-sub">{todays.length ? `${todaysDone} of ${todays.length} done` : 'Nothing planned'}</div>
+        </button>
+        <button type="button" className="tile" onClick={() => next && setDay(next.plan_date)}>
+          <BigValue value={nextBig.value} unit={nextBig.unit} className={next ? '' : 'dim'} />
+          <div className="tile-title clamp">{next ? next.title : 'Nothing next'}</div>
+          <div className="tile-sub">{next ? `${untilLabel(next, now)}${next.owner ? ' · your schedule' : ''}` : 'Add a plan below'}</div>
+        </button>
+        <div className="tile wide">
+          <div className="dots">
+            {months.map(m => (
+              <div key={m.key} className="dots-month">
+                <div className="dots-label">{m.label}</div>
+                <div className="dots-grid">
+                  {m.cells.map((c, i) => c === null ? <span key={i} className="dot-cell blank" /> : (
+                    <button key={c} type="button" data-haptic="tick" onClick={() => setDay(c)} aria-label={dayTitle(c, now)}
+                      className={`dot-cell${planDays.has(c) ? ' has' : ''}${c < today ? ' past' : ''}${c === today ? ' today' : ''}${c === day ? ' sel' : ''}`} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="tile-foot">
+            <Ring value={aheadDays} total={daysInView} size={50}>{ahead.length}</Ring>
+            <div>
+              <div className="tile-title">{ahead.length === 1 ? '1 plan ahead' : `${ahead.length} plans ahead`}</div>
+              <div className="tile-sub">Next three months · yours and together</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="strip" role="tablist" aria-label="Choose a day" onScroll={e => {
         // a soft tick for each day that scrolls past, like an iOS picker
@@ -147,7 +207,7 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
           <button type="button" role="radio" aria-checked={draft.whose === 'together'} onClick={() => chooseWhose('together')}>Together</button>
           <button type="button" role="radio" aria-checked={draft.whose === 'me'} onClick={() => chooseWhose('me')}>My schedule</button>
         </div>
-        <input id="planTitle" className="title-input" required maxLength={100} value={draft.title} onChange={e => set('title', e.target.value)}
+        <input ref={titleRef} id="planTitle" className="title-input" required maxLength={100} value={draft.title} onChange={e => set('title', e.target.value)}
           placeholder={draft.whose === 'me' ? 'Office, meeting with client, gym…' : 'Dinner at Third Wave Coffee'} aria-label="What's the plan?" />
         <div className="kinds" role="radiogroup" aria-label="Type of plan">
           {(draft.whose === 'me' ? MY_KINDS : TOGETHER_KINDS).map(k => (

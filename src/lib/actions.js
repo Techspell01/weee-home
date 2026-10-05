@@ -69,15 +69,6 @@ export function makeActions({ householdId, me, hh, notify }) {
     },
 
     recordPurchase,
-    setLastsDays(p, days) {
-      const v = Math.min(365, Math.max(1, days));
-      hh.patch('pantry', p.id, { lasts_days: v });
-      return run(supabase.from('pantry').update({ lasts_days: v }).eq('id', p.id), 'pantry');
-    },
-    untrack(p) {
-      hh.drop('pantry', r => r.id === p.id);
-      return run(supabase.from('pantry').delete().eq('id', p.id), 'pantry');
-    },
 
 
     async addExpense({ description, amount, category = 'other', paidBy, splitWith }) {
@@ -110,6 +101,27 @@ export function makeActions({ householdId, me, hh, notify }) {
     removePlan(p) {
       hh.drop('plans', r => r.id === p.id);
       return run(supabase.from('plans').delete().eq('id', p.id), 'plans');
+    },
+
+    // Location sharing: each person turns it on or off for themselves.
+    async setSharing(on) {
+      const ok = await run(supabase.from('household_members').update({ share_location: on })
+        .eq('household_id', householdId).eq('user_id', me), 'members');
+      if (ok) { haptic(on ? 'success' : 'select'); hh.refresh('locations'); }
+      return ok;
+    },
+    async addPlace({ name, lat, lng, radius }) {
+      const ok = await run(supabase.from('places').insert({ household_id: householdId, name, lat, lng, radius_m: radius }), 'places');
+      if (ok) haptic('success');
+      return ok;
+    },
+    togglePlaceAlerts(place) {
+      hh.patch('places', place.id, { notify: !place.notify });
+      return run(supabase.from('places').update({ notify: !place.notify }).eq('id', place.id), 'places');
+    },
+    removePlace(place) {
+      hh.drop('places', r => r.id === place.id);
+      return run(supabase.from('places').delete().eq('id', place.id), 'places');
     },
 
     renameMe(displayName) {

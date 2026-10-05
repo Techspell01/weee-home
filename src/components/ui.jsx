@@ -17,7 +17,19 @@ export const Icon = {
   back: () => svg(<path d="M15 18l-6-6 6-6" />, 22),
   calendar: () => svg(<><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /><path d="M12 13.6l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2L9.1 15.7l2-.3z" strokeWidth="1.4" /></>, 22, { strokeWidth: 2 }),
   cart: () => svg(<><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2" /><circle cx="10" cy="20" r="1.3" /><circle cx="17" cy="20" r="1.3" /></>, 22, { strokeWidth: 2 }),
-  pantry: () => svg(<><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M5 10h14M5 15h14" /></>, 22, { strokeWidth: 2 }),
+  map: () => svg(<><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.4" /></>, 22, { strokeWidth: 2 }),
+  plus: () => svg(<path d="M12 5v14M5 12h14" />, 22, { strokeWidth: 2 }),
+  locate: () => svg(<><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" /><circle cx="12" cy="12" r="7" /></>, 20, { strokeWidth: 1.8 }),
+  bell: on => svg(on
+    ? <><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></>
+    : <><path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2H8" /><path d="M10 20.5a2 2 0 0 0 4 0M3 3l18 18" /></>, 18, { strokeWidth: 1.9 }),
+  battery: (level, charging) => (
+    <svg width="22" height="12" viewBox="0 0 26 14" aria-hidden="true" className="batt">
+      <rect x="0.75" y="0.75" width="21.5" height="12.5" rx="3.2" fill="none" stroke="currentColor" strokeOpacity=".45" strokeWidth="1.5" />
+      <rect x="23.4" y="4.5" width="1.9" height="5" rx="0.9" fill="currentColor" fillOpacity=".45" />
+      <rect x="2.6" y="2.6" width={Math.max(1.5, 17.8 * (level ?? 0) / 100)} height="8.8" rx="1.8" fill={charging ? '#7DDB9B' : level != null && level <= 20 ? '#FF8A70' : 'currentColor'} />
+    </svg>
+  ),
   money: () => svg(<path d="M6 4h12M6 9h12M9 4c4 0 6 2 6 5s-2 5-6 5H7l8 7" />, 22, { strokeWidth: 2 }),
 };
 
@@ -62,4 +74,26 @@ export function Splash({ text = 'Loading…' }) {
 
 export function Empty({ title, children }) {
   return <div className="empty"><b>{title}</b>{children}</div>;
+}
+
+// Thin circular progress ring (like an activity ring) with a value in the middle.
+export function Ring({ value = 0, total = 1, size = 62, stroke = 3, children }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = total > 0 ? Math.min(1, value / total) : 0;
+  return (
+    <div className="ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity=".14" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)} transform={`rotate(-90 ${size / 2} ${size / 2})`} className="ring-arc" />
+      </svg>
+      <span className="ring-value">{children}</span>
+    </div>
+  );
+}
+
+// Big number with a smaller grey unit, e.g. 7 items, 8:30 pm, 82 %.
+export function BigValue({ value, unit, className = '' }) {
+  return <div className={`big-value ${className}`}>{value}{unit && <span className="unit">{unit}</span>}</div>;
 }

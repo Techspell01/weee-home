@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SPEND_CATEGORIES, guessExpenseCategory, monthKey, monthLabel, rupees, settlements, shiftMonth, spending } from '../lib/money.js';
 import { ago } from '../lib/time.js';
 import { ConfirmButton, Icon } from '../components/ui.jsx';
@@ -24,6 +24,15 @@ export default function MoneyTab({ hh, actions, nameOf, me, notify, now }) {
   const history = hh.expenses.filter(e => monthKey(e.created_at) === month)
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
+  // header "+" jumps to the expense form
+  const formRef = useRef(null);
+  useEffect(() => {
+    const open = () => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(() => document.getElementById('expDesc')?.focus(), 400); };
+    window.addEventListener('weee:add', open);
+    return () => window.removeEventListener('weee:add', open);
+  }, []);
+  const whole = n => Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
   function describe(v) {
     setDescription(v);
     if (!categoryPicked) setCategory(guessExpenseCategory(v));
@@ -43,9 +52,6 @@ export default function MoneyTab({ hh, actions, nameOf, me, notify, now }) {
 
   return (
     <section>
-      <h2>Money</h2>
-      <p className="sub">See where your money goes each month, and who owes whom.</p>
-
       <div className="spend">
         <div className="spend-head">
           <button className="icon" data-haptic="select" onClick={() => setMonth(m => shiftMonth(m, -1))} aria-label="Previous month"><Icon.back /></button>
@@ -80,20 +86,25 @@ export default function MoneyTab({ hh, actions, nameOf, me, notify, now }) {
         )}
       </div>
 
-      <div className="label">Balance</div>
       {owed.length === 0 ? (
-        <div className="bal"><div><div className="amt small">All square</div><div className="meta">Nobody owes anything right now.</div></div></div>
-      ) : owed.map(o => (
-        <div key={o.from + o.to} className="bal">
-          <div className="main">
-            <div className="meta">{nameOf(o.from)} {o.from === me ? 'owe' : 'owes'} {o.to === me ? 'you' : nameOf(o.to)}</div>
-            <div className="amt">{rupees(o.amount)}</div>
+        <div className="split-card">
+          <div className="split-left">
+            <div className="tile-title">All square</div>
+            <div className="tile-sub">Balance</div>
           </div>
-          <button className="btn ghost small" onClick={() => actions.settle(o)}>Mark settled</button>
+          <div className="split-right"><div className="big-value"><span className="unit pre">₹</span>0</div></div>
+        </div>
+      ) : owed.map(o => (
+        <div key={o.from + o.to} className="split-card">
+          <div className="split-left">
+            <div className="tile-title">{nameOf(o.from)} {o.from === me ? 'owe' : 'owes'} {o.to === me ? 'you' : nameOf(o.to)}</div>
+            <button type="button" className="btn ghost small" onClick={() => actions.settle(o)}>Mark settled</button>
+          </div>
+          <div className="split-right"><div className="big-value"><span className="unit pre">₹</span>{whole(o.amount)}</div></div>
         </div>
       ))}
 
-      <div className="label">Add an expense</div>
+      <div className="label" ref={formRef}>Add an expense</div>
       <form className="form" onSubmit={submit} autoComplete="off">
         <div className="two">
           <label className="field"><span>What for</span><input id="expDesc" required maxLength={80} placeholder="Dinner at Toit" value={description} onChange={e => describe(e.target.value)} /></label>

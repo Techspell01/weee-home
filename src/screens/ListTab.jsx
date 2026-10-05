@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CATEGORY_NAMES, CATEGORY_ORDER, itemKey, stockLevel, isRunningLow } from '../lib/groceries.js';
 import { ago } from '../lib/time.js';
-import { ConfirmButton, Empty, Icon } from '../components/ui.jsx';
+import { BigValue, ConfirmButton, Empty, Icon, Ring } from '../components/ui.jsx';
 
 export default function ListTab({ hh, actions, nameOf, notify, me, now }) {
   const [text, setText] = useState('');
@@ -16,6 +16,17 @@ export default function ListTab({ hh, actions, nameOf, notify, me, now }) {
 
   const groups = {};
   for (const i of need) (groups[i.category] ??= []).push(i);
+  const urgent = need.filter(i => i.urgent).length;
+  const trip = need.length + bought.length;
+  const newest = [...need].sort((a, b) => Date.parse(b.added_at) - Date.parse(a.added_at))[0];
+
+  // header "+" jumps to the add box
+  const inputRef = useRef(null);
+  useEffect(() => {
+    const focus = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); inputRef.current?.focus(); };
+    window.addEventListener('weee:add', focus);
+    return () => window.removeEventListener('weee:add', focus);
+  }, []);
 
   function submit(e) {
     e.preventDefault();
@@ -34,10 +45,21 @@ export default function ListTab({ hh, actions, nameOf, notify, me, now }) {
 
   return (
     <section>
-      <h2>Shopping list</h2>
-      <p className="sub">Anything one of you adds shows up on the other's phone straight away.</p>
+      <div className="bento">
+        <div className="tile">
+          <BigValue value={need.length} unit={need.length === 1 ? 'item' : 'items'} />
+          <div className="tile-title">To buy</div>
+          <div className="tile-sub">{urgent ? `${urgent} needed today` : newest ? `${nameOf(newest.added_by)} added ${ago(newest.added_at, now)}` : 'All done'}</div>
+        </div>
+        <div className="tile">
+          <Ring value={bought.length} total={trip}>{bought.length}</Ring>
+          <div className="tile-title">In the bag</div>
+          <div className="tile-sub">{trip ? `${bought.length} of ${trip} ticked off` : 'Nothing yet'}</div>
+        </div>
+      </div>
+
       <form className="add" onSubmit={submit} autoComplete="off">
-        <input id="addItems" value={text} onChange={e => setText(e.target.value)}
+        <input ref={inputRef} id="addItems" value={text} onChange={e => setText(e.target.value)}
           placeholder="2 kg rice, milk, 6 eggs, coriander" aria-label="Add items" enterKeyHint="done" />
         <button className="btn">Add</button>
       </form>

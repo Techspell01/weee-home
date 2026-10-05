@@ -111,3 +111,26 @@ export function sortPlans(a, b) {
 }
 
 export const mapLink = place => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
+
+// Calendar cells for one month, Monday first; null for the blanks before the 1st.
+export function monthCells(year, month) {
+  const lead = (new Date(year, month, 1).getDay() + 6) % 7;
+  const days = new Date(year, month + 1, 0).getDate();
+  return [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => toDateString(new Date(year, month, i + 1)))];
+}
+
+// "in 25 min", "in 2 h", "Tomorrow", "in 5 days" until a plan starts.
+export function untilLabel(plan, now = Date.now()) {
+  if (!plan.plan_date) return 'Someday';
+  const d = daysUntil(plan.plan_date, now);
+  if (d === 0) {
+    if (!plan.plan_time) return 'Today';
+    const [h, m] = plan.plan_time.split(':').map(Number);
+    const start = new Date(now); start.setHours(h, m, 0, 0);
+    const mins = Math.round((start - now) / 60000);
+    if (mins <= 0) return 'Now';
+    if (mins < 60) return `in ${mins} min`;
+    return `in ${Math.round(mins / 60)} h`;
+  }
+  return d === 1 ? 'Tomorrow' : `in ${d} days`;
+}

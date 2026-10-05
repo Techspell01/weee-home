@@ -64,6 +64,18 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
       },
     };
   }
+  if (table === 'place_event') {
+    const who = await displayName(r.household_id, r.user_id);
+    return {
+      actor: r.user_id,
+      msg: {
+        title: r.event === 'arrived' ? `${who} arrived at ${r.place}` : `${who} left ${r.place}`,
+        body: 'Open Weee to see the map',
+        tag: `place-${r.id}-${r.user_id}`,
+        url: '/?tab=map',
+      },
+    };
+  }
   return null;
 }
 

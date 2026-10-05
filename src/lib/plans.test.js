@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayStrip, daysUntil, formatTime, groupOf, quickDates, sortPlans, timeRange, whenLabel } from './plans.js';
+import { dayStrip, daysUntil, formatTime, groupOf, monthCells, quickDates, sortPlans, timeRange, untilLabel, whenLabel } from './plans.js';
 
 // Monday 5 Oct 2026, 6 pm local time
 const now = new Date(2026, 9, 5, 18, 0).getTime();
@@ -43,6 +43,16 @@ describe('plans', () => {
     expect(strip[6].value).toBe('2026-10-11');
     expect(timeRange({ plan_time: '09:00', end_time: '18:00' })).toBe('9 am – 6 pm');
     expect(whenLabel({ plan_date: '2026-10-05', plan_time: '09:00:00', end_time: '18:00:00' }, now)).toBe('Today · 9 am – 6 pm');
+  });
+
+  it('lays out a month Monday-first and counts down to the next plan', () => {
+    const oct = monthCells(2026, 9); // October 2026 starts on a Thursday
+    expect(oct.slice(0, 4)).toEqual([null, null, null, '2026-10-01']);
+    expect(oct.filter(Boolean)).toHaveLength(31);
+    expect(untilLabel({ plan_date: '2026-10-05', plan_time: '18:25' }, now)).toBe('in 25 min');
+    expect(untilLabel({ plan_date: '2026-10-05', plan_time: '20:00' }, now)).toBe('in 2 h');
+    expect(untilLabel({ plan_date: '2026-10-06' }, now)).toBe('Tomorrow');
+    expect(untilLabel({ plan_date: '2026-10-10' }, now)).toBe('in 5 days');
   });
 
   it('sorts by date, then time, with ideas last', () => {
