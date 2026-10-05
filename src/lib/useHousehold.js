@@ -14,9 +14,12 @@ const TABLES = {
   hides: { table: 'message_hides', select: 'message_id', order: 'message_id' }, // only my own (RLS)
   // mine, plus ones my partner chose to share (RLS)
   trackers: { table: 'trackers', select: '*', order: 'created_at' },
+  countdowns: { table: 'countdowns', select: '*', order: 'date' },
+  nudges: { table: 'nudges', select: '*', order: 'created_at', desc: true, limit: 50 },
+  reactions: { table: 'message_reactions', select: 'message_id, user_id, emoji', order: 'created_at' },
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], trackers: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], trackers: [], countdowns: [], nudges: [], reactions: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item, a plan or a message.
 // `online` lists who has Weee open right now (Supabase Realtime presence).
@@ -71,6 +74,7 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
       if (payload.eventType === 'INSERT') {
         if (key === 'items' && row.added_by !== me) onRemoteInsertRef.current?.(key, row);
         if (key === 'plans' && row.created_by !== me) onRemoteInsertRef.current?.(key, row);
+        if (key === 'nudges' && row.from_user !== me) onRemoteInsertRef.current?.(key, row);
         if (key === 'messages' && row.user_id !== me) {
           onRemoteInsertRef.current?.(key, row);
           setTyping(t => ({ ...t, [row.user_id]: 0 })); // they sent it, so they stopped typing

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { KINDS, MY_KINDS, TOGETHER_KINDS, dayStrip, dayTitle, formatTime, mapLink, monthCells, sortPlans, timeRange, toDateString, untilLabel, whenLabel } from '../lib/plans.js';
 import { BigValue, ConfirmButton, Empty, Icon, Ring } from '../components/ui.jsx';
 import { haptic } from '../lib/haptics.js';
+import Countdowns from '../components/Countdowns.jsx';
 
 const IDEAS = 'ideas';
 
@@ -152,6 +153,9 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
         </div>
       </div>
 
+      <Countdowns hh={hh} actions={actions} notify={notify} now={now} />
+
+      <div className="label">Your days</div>
       <div className="strip" role="tablist" aria-label="Choose a day" onScroll={e => {
         // a soft tick for each day that scrolls past, like an iOS picker
         const i = Math.round(e.currentTarget.scrollLeft / 66);

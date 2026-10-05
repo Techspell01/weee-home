@@ -2,6 +2,7 @@
 //   chat   – a soft two-note "pop" for a new message
 //   alarm  – a two-tone alarm for a follow-up reminder that's due
 //   soft   – a quiet tick for a message while the chat is already open
+//   heart  – a warm two-beat chime for "thinking of you"
 // Phones only allow sound after the person has touched the page, so the audio
 // engine is unlocked on the first tap (see unlockAudio in main.jsx). Like other
 // app sounds on iPhone, these follow the ring/silent switch.
@@ -50,6 +51,7 @@ const PATTERNS = {
   chat: [[988, 0, 0.16, 0.16], [1319, 0.09, 0.22, 0.13]],
   alarm: [[880, 0, 0.18, 0.16], [1175, 0.2, 0.18, 0.16], [880, 0.4, 0.18, 0.16], [1175, 0.6, 0.18, 0.16], [880, 0.8, 0.18, 0.16], [1397, 1.0, 0.45, 0.17]],
   soft: [[1319, 0, 0.12, 0.06]],
+  heart: [[523, 0, 0.22, 0.13], [659, 0.16, 0.22, 0.13], [784, 0.62, 0.22, 0.12], [1047, 0.78, 0.5, 0.13]],
 };
 
 export function playSound(kind) {

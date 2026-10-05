@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useHousehold } from '../lib/useHousehold.js';
 import { makeActions } from '../lib/actions.js';
 import { groupOf, whenLabel } from '../lib/plans.js';
-import { AlertBanner, Icon, Toasts, useToasts } from '../components/ui.jsx';
+import { AlertBanner, HeartOverlay, Icon, Toasts, useToasts } from '../components/ui.jsx';
 import TabBar from '../components/TabBar.jsx';
 import { isSubscribed, resyncPush } from '../lib/push.js';
 import { haptic } from '../lib/haptics.js';
@@ -50,6 +50,7 @@ export default function Home({ membership, me, onLeft }) {
   const [now, setNow] = useState(Date.now());
   const [toasts, notify] = useToasts();
   const [alert, setAlert] = useState(null);
+  const [heart, setHeart] = useState(null); // "X is thinking of you" moment
   const alertTimer = useRef(0);
   function showAlert(a) {
     clearTimeout(alertTimer.current);
@@ -96,6 +97,12 @@ export default function Home({ membership, me, onLeft }) {
     onRemoteInsert: (key, row) => {
       const { members, inChat, pushOn: viaPush } = latest.current;
       let text;
+      if (key === 'nudges') {
+        if (!viaPush) playSound('heart');
+        haptic('heartbeat');
+        setHeart({ from: nameFrom(members, row.from_user), key: row.id });
+        return;
+      }
       if (key === 'messages') {
         if (inChat) { if (!viaPush) playSound('soft'); return; } // already looking at it
         if (!viaPush) playSound('chat');
@@ -141,6 +148,16 @@ export default function Home({ membership, me, onLeft }) {
     const iv = setInterval(check, 15000);
     return () => clearInterval(iv);
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opened from a heart notification: show the moment once the data is in.
+  const fromHeartLink = useRef(new URLSearchParams(window.location.search).get('nudge') === '1');
+  useEffect(() => {
+    if (!fromHeartLink.current || !hh.loaded) return;
+    fromHeartLink.current = false;
+    const last = hh.nudges.find(n => n.from_user !== me && Date.now() - Date.parse(n.created_at) < 3600000);
+    if (last) setHeart({ from: nameFrom(hh.members, last.from_user), key: last.id });
+    try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+  }, [hh.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Open Settings" buttons elsewhere (e.g. the notifications hint)
   useEffect(() => {
@@ -208,6 +225,8 @@ export default function Home({ membership, me, onLeft }) {
 
       <TabBar tabs={TABS} current={tab} onSelect={go} badges={badges} />
       <Toasts toasts={toasts} />
+      <HeartOverlay heart={heart} onClose={() => setHeart(null)}
+        onSendBack={async () => { setHeart(null); if (await actions.sendNudge()) notify(`Heart sent back 💗`); }} />
       <AlertBanner alert={alert} onClose={() => setAlert(null)}
         onOpen={() => {
           const to = alert?.open;

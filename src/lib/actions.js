@@ -108,6 +108,26 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('plans').delete().eq('id', p.id), 'plans');
     },
 
+    // "Thinking of you"
+    async sendNudge() {
+      const { error } = await supabase.from('nudges').insert({ household_id: householdId });
+      if (error) { if (!/One heart/.test(error.message)) notify(friendlyError(error)); return false; }
+      haptic('heartbeat');
+      hh.refresh('nudges');
+      return true;
+    },
+
+    // Countdowns
+    async addCountdown({ title, date, yearly }) {
+      const ok = await run(supabase.from('countdowns').insert({ household_id: householdId, title, date, yearly }), 'countdowns');
+      if (ok) haptic('success');
+      return ok;
+    },
+    removeCountdown(c) {
+      hh.drop('countdowns', r => r.id === c.id);
+      return run(supabase.from('countdowns').delete().eq('id', c.id), 'countdowns');
+    },
+
     // Follow-up tracker
     async addTracker(row) {
       const ok = await run(supabase.from('trackers').insert({ household_id: householdId, ...row }), 'trackers');
@@ -139,14 +159,32 @@ export function makeActions({ householdId, me, hh, notify }) {
 
 
     // Chat
-    async sendMessage(body) {
+    async sendMessage(body, replyTo = null) {
       const text = body.trim().slice(0, 2000);
       if (!text) return false;
-      const temp = { id: `tmp-${Date.now()}`, household_id: householdId, user_id: me, body: text, created_at: now(), pending: true };
-      hh.add?.('messages', temp);
-      const ok = await run(supabase.from('messages').insert({ household_id: householdId, body: text }), 'messages');
+      const temp = { id: `tmp-${Date.now()}`, household_id: householdId, user_id: me, body: text, reply_to: replyTo, created_at: now(), pending: true };
+      hh.add('messages', temp);
+      const ok = await run(supabase.from('messages').insert({ household_id: householdId, body: text, reply_to: replyTo }), 'messages');
       if (ok) haptic('light');
       return ok;
+    },
+    // One reaction per person per message: same emoji again removes it.
+    async react(m, emoji) {
+      const mine = hh.reactions.find(r => r.message_id === m.id && r.user_id === me);
+      hh.drop('reactions', r => r.message_id === m.id && r.user_id === me);
+      if (mine?.emoji === emoji) {
+        return run(supabase.from('message_reactions').delete().eq('message_id', m.id).eq('user_id', me), 'reactions');
+      }
+      hh.add('reactions', { message_id: m.id, user_id: me, emoji });
+      haptic('select');
+      return run(supabase.from('message_reactions')
+        .upsert({ message_id: m.id, user_id: me, household_id: householdId, emoji }, { onConflict: 'message_id,user_id' }), 'reactions');
+    },
+    pinMessage(m, on) {
+      const changes = on ? { pinned_at: now(), pinned_by: me } : { pinned_at: null, pinned_by: null };
+      hh.patch('messages', m.id, changes);
+      if (on) haptic('success');
+      return run(supabase.from('messages').update(changes).eq('id', m.id), 'messages');
     },
     unsendMessage(m) {
       hh.drop('messages', r => r.id === m.id);

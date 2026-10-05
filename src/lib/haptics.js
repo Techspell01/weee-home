@@ -12,6 +12,7 @@ const PATTERNS = {
   warn: [25, 40, 25],            // confirming a delete
   error: [30, 60, 30, 60, 30],   // something failed
   notify: [10, 80, 10, 80, 18],  // your partner just added something
+  heartbeat: [60, 110, 60, 600, 60, 110, 60], // a heart sent or received
 };
 const STORAGE_KEY = 'homelist-haptics';
 

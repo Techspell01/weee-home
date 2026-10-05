@@ -21,6 +21,13 @@ export const Icon = {
   briefcase: () => svg(<><rect x="3" y="7.5" width="18" height="12" rx="2.5" /><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3 13h18" /></>, 20, { strokeWidth: 2 }),
   task: () => svg(<><circle cx="12" cy="12" r="8.5" /><path d="M8.5 12.2l2.4 2.3 4.6-4.8" /></>, 20, { strokeWidth: 2 }),
   link: () => svg(<><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>, 16, { strokeWidth: 2 }),
+  heart: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3 4.2 6.4-1.8 5-9.3 9.6-9.3 9.6z" />
+    </svg>
+  ),
+  reply: () => svg(<path d="M10 8L5 12.5l5 4.5M5.5 12.5H14a5 5 0 0 1 5 5V19" />, 16, { strokeWidth: 2.2 }),
+  pin: () => svg(<><path d="M9 4h6l-1 5 3 3v1.5H7V12l3-3z" /><path d="M12 13.5V20" /></>, 15, { strokeWidth: 2 }),
   plus: () => svg(<path d="M12 5v14M5 12h14" />, 22, { strokeWidth: 2 }),
   discover: () => svg(<><circle cx="12" cy="12" r="9" /><path d="M15.6 8.4l-2 5.2-5.2 2 2-5.2z" /></>, 22, { strokeWidth: 2 }),
   chat: () => svg(<path d="M4 11.5a7.5 7 0 0 1 15 0 7.5 7 0 0 1-10.6 6.4L4 19.5l1.4-3.6A6.8 6.8 0 0 1 4 11.5z" />, 22, { strokeWidth: 2 }),
@@ -105,6 +112,25 @@ export function AlertBanner({ alert, onOpen, onClose }) {
         {alert.body && <span>{alert.body}</span>}
       </span>
       <button type="button" className="icon alert-close" aria-label="Dismiss" onClick={e => { e.stopPropagation(); onClose(); }}><Icon.x /></button>
+    </div>
+  );
+}
+
+// Full-screen "thinking of you" moment when a heart arrives.
+export function HeartOverlay({ heart, onSendBack, onClose }) {
+  if (!heart) return null;
+  return (
+    <div className="heart-overlay" key={heart.key} role="dialog" aria-label={`${heart.from} is thinking of you`} onClick={onClose}>
+      <div className="heart-card" onClick={e => e.stopPropagation()}>
+        <span className="big-heart" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="120" height="120" fill="currentColor"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3 4.2 6.4-1.8 5-9.3 9.6-9.3 9.6z" /></svg>
+        </span>
+        <div className="heart-title">{heart.from} is thinking of you</div>
+        <div className="stack-row center-row">
+          <button type="button" className="btn" data-haptic="heartbeat" onClick={onSendBack}>Send one back 💗</button>
+          <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }

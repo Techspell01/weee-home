@@ -21,7 +21,7 @@ const cors = {
 };
 
 type Sub = { id: string; endpoint: string; p256dh: string; auth: string };
-type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'reminder' | 'item' | 'plan' | 'test' };
+type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'reminder' | 'item' | 'plan' | 'nudge' | 'countdown' | 'test' };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function formatTime(t: string | null) {
@@ -71,6 +71,20 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
     return {
       actor: r.user_id,
       msg: { title: who, body: text.length > 160 ? text.slice(0, 157) + '…' : text, tag: `chat-${r.household_id}`, url: '/?tab=chat', kind: 'chat' },
+    };
+  }
+  if (table === 'nudges') {
+    const who = await displayName(r.household_id, r.from_user);
+    return {
+      actor: r.from_user,
+      msg: { title: `💗 ${who} is thinking of you`, body: 'Tap to send one back', tag: `nudge-${r.household_id}`, url: '/?tab=discover&nudge=1', kind: 'nudge' },
+    };
+  }
+  if (table === 'countdown_today') {
+    const years = r.yearly && r.years > 0 ? ` · ${r.years} ${r.years === 1 ? 'year' : 'years'}` : '';
+    return {
+      actor: null,
+      msg: { title: `🎉 Today: ${r.title}${years}`, body: 'The countdown is over. Have a lovely day!', tag: `countdown-${r.id}-${r.day}`, url: '/?tab=plans', kind: 'countdown' },
     };
   }
   if (table === 'tracker_due') {

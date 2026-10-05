@@ -10,8 +10,10 @@
 |---|---|
 | **Plans** | A scrollable row of days. Each day shows plans you have **together** (dates, outings, trips, family) and **each person's own schedule** (work, appointments, errands with start and end times), so you can see each other's day. Undated plans are saved as **Ideas**. Places open in Google Maps. |
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
+| **Countdowns** | Big-number tiles on Plans ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
+| **Thinking of you** | One heart button (Discover and the chat box): your partner gets a notification with a heartbeat vibration, or a full-screen pulsing heart if Weee is open, with "Send one back". |
 | **Tracker** | Things to follow up on, like job applications (Applied → Followed up → Interview → Offer / Rejected) or anything else. Set a reminder date and time, optionally repeating every few days; Weee sends a push notification at that time even when the app is closed. Log each follow-up with a note, snooze, archive. Private by default, or shared with your partner. |
-| **Chat** | A private chat for the household with "typing…", "Seen" receipts, unsend, and push notifications for new messages. |
+| **Chat** | A private chat with "typing…", sent/delivered/seen ticks, double-tap ❤️ and emoji reactions, swipe-to-reply with quotes, pinned messages, delete for me / unsend / clear chat, and push notifications. |
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
 | **Money** | Monthly spending by category (groceries, outings, rent, bills, travel…), equal splits, "who owes whom", and settle-up. |
 | **Push notifications** | "Priya added Milk", "Priya planned: Dinner at Toit", chat messages and follow-up reminders, even with the app closed (iPhone Home Screen app on iOS 16.4+, and Android). |
@@ -83,6 +85,9 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `plans` | title, type, date, start/end time, place, notes; `owner` set means that person's own schedule |
 | `expenses` | amount, category, payer, who it's split between, settle-ups |
 | `push_subscriptions` | which devices get notifications |
+| `countdowns` | title, date, repeats yearly |
+| `nudges` | "thinking of you" hearts (kept 30 days, rate-limited) |
+| `message_reactions` | one emoji reaction per person per message |
 | `trackers` | follow-ups: kind, title, details, link, status, next reminder time, repeat, follow-up log; private unless shared |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |
 
