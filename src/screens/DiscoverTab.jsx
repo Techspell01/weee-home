@@ -1,6 +1,7 @@
 import { BigValue, Icon } from '../components/ui.jsx';
 import { monthKey, monthLabel, settlements, spending } from '../lib/money.js';
 import { ago } from '../lib/time.js';
+import { visibleMessages } from '../lib/chat.js';
 
 // Discover: the hub for Shopping, Money and Chat.
 export default function DiscoverTab({ hh, nameOf, me, now, open, unread }) {
@@ -9,7 +10,8 @@ export default function DiscoverTab({ hh, nameOf, me, now, open, unread }) {
   const month = monthKey(now);
   const spent = spending(hh.expenses, month);
   const owed = settlements(hh.expenses, hh.members.map(m => m.user_id));
-  const last = hh.messages[hh.messages.length - 1];
+  const visible = visibleMessages(hh, me);
+  const last = visible[visible.length - 1];
   const whole = n => Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
   const balance = !owed.length ? 'All square'
     : owed.length === 1 ? `${nameOf(owed[0].from)} ${owed[0].from === me ? 'owe' : 'owes'} ${owed[0].to === me ? 'you' : nameOf(owed[0].to)} ₹${whole(owed[0].amount)}`

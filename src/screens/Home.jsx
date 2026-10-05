@@ -2,11 +2,14 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useHousehold } from '../lib/useHousehold.js';
 import { makeActions } from '../lib/actions.js';
 import { groupOf, whenLabel } from '../lib/plans.js';
-import { Icon, Toasts, useToasts } from '../components/ui.jsx';
+import { AlertBanner, Icon, Toasts, useToasts } from '../components/ui.jsx';
 import TabBar from '../components/TabBar.jsx';
 import { resyncPush } from '../lib/push.js';
 import { haptic } from '../lib/haptics.js';
 import { useLocationSharing } from '../lib/location.js';
+import { playSound } from '../lib/sounds.js';
+import { formatStay } from '../lib/time.js';
+import { visibleMessages } from '../lib/chat.js';
 import PlansTab from './PlansTab.jsx';
 import DiscoverTab from './DiscoverTab.jsx';
 import ListTab from './ListTab.jsx';
@@ -49,6 +52,13 @@ export default function Home({ membership, me, onLeft }) {
   const [motion, setMotion] = useState('none'); // which way the new page slides in
   const [now, setNow] = useState(Date.now());
   const [toasts, notify] = useToasts();
+  const [alert, setAlert] = useState(null);
+  const alertTimer = useRef(0);
+  function showAlert(a) {
+    clearTimeout(alertTimer.current);
+    setAlert({ ...a, key: Date.now() });
+    alertTimer.current = setTimeout(() => setAlert(null), 6000);
+  }
 
   function go(next) {
     if (next === tab) {
@@ -75,20 +85,34 @@ export default function Home({ membership, me, onLeft }) {
   };
 
   // Realtime callbacks fire later, so they read the latest state from a ref.
-  const latest = useRef({ members: [], places: [], inChat: false });
+  const latest = useRef({ members: [], places: [], presence: [], inChat: false });
   const hh = useHousehold(household.id, me, {
     onRemoteInsert: (key, row) => {
-      const { members, places, inChat } = latest.current;
+      const { members, places, presence, inChat } = latest.current;
       let text;
       if (key === 'messages') {
-        if (inChat) return; // already looking at it
-        text = `${nameFrom(members, row.user_id)}: ${row.body.length > 60 ? row.body.slice(0, 57) + '…' : row.body}`;
+        if (inChat) { playSound('soft'); return; } // already looking at it
+        playSound('chat');
+        haptic('notify');
+        showAlert({ kind: 'chat', title: nameFrom(members, row.user_id), body: row.body.length > 90 ? row.body.slice(0, 87) + '…' : row.body, open: 'chat' });
+        return;
+      } else if (key === 'presence') {
+        const place = places.find(p => p.id === row.place_id)?.name || 'a saved place';
+        const who = row.user_id === me ? 'You' : nameFrom(members, row.user_id);
+        const before = presence.find(p => p.place_id === row.place_id && p.user_id === row.user_id);
+        const stayed = !row.inside && before?.changed_at ? formatStay(Date.now() - Date.parse(before.changed_at)) : null;
+        playSound(row.inside ? 'arrive' : 'leave');
+        haptic('notify');
+        showAlert({
+          kind: row.inside ? 'arrive' : 'leave',
+          title: `${who} ${row.inside ? 'arrived at' : 'left'} ${place}`,
+          body: stayed ? `Stayed ${stayed} · tap to see the map` : 'Just now · tap to see the map',
+          open: 'map',
+        });
+        return;
       } else if (key === 'plans') {
         const who = nameFrom(members, row.created_by);
         text = row.owner ? `${who}'s schedule: ${row.title} · ${whenLabel(row)}` : `${who} planned ${row.title} · ${whenLabel(row)}`;
-      } else if (key === 'presence') {
-        const place = places.find(p => p.id === row.place_id)?.name || 'a saved place';
-        text = `${nameFrom(members, row.user_id)} ${row.inside ? 'arrived at' : 'left'} ${place}`;
       } else {
         text = `${nameFrom(members, row.added_by)} added ${row.name}`;
       }
@@ -97,7 +121,7 @@ export default function Home({ membership, me, onLeft }) {
     },
   });
   const inChat = tab === 'discover' && sub === 'chat';
-  latest.current = { members: hh.members, places: hh.places, inChat };
+  latest.current = { members: hh.members, places: hh.places, presence: hh.presence, inChat };
 
   const nameOf = id => nameFrom(hh.members, id);
   const actions = makeActions({ householdId: household.id, me, hh, notify });
@@ -126,7 +150,7 @@ export default function Home({ membership, me, onLeft }) {
   }, [tab, sub]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const readAt = mine?.chat_read_at ? Date.parse(mine.chat_read_at) : 0;
-  const unread = hh.messages.filter(m => m.user_id !== me && Date.parse(m.created_at) > readAt).length;
+  const unread = visibleMessages(hh, me).filter(m => m.user_id !== me && Date.parse(m.created_at) > readAt).length;
   const badges = {
     plans: hh.plans.filter(p => !p.done && (!p.owner || p.owner === me) && ['missed', 'today'].includes(groupOf(p, now))).length,
     discover: unread,
@@ -137,7 +161,7 @@ export default function Home({ membership, me, onLeft }) {
   const shared = { hh, actions, nameOf, notify, now, me };
   const page = tab === 'discover' && sub ? sub : tab;
   const showBack = tab === 'settings' || (tab === 'discover' && sub);
-  const showAdd = !['settings', 'discover'].includes(page);
+  const showAdd = !['settings', 'discover', 'chat'].includes(page);
 
   return (
     <>
@@ -156,6 +180,7 @@ export default function Home({ membership, me, onLeft }) {
             </div>
           </div>
           {showAdd && <button className="icon big" onClick={() => window.dispatchEvent(new Event('weee:add'))} aria-label="Add"><Icon.plus /></button>}
+          {page === 'chat' && <button className="icon big" onClick={() => window.dispatchEvent(new Event('weee:clear-chat'))} aria-label="Clear chat"><Icon.trash /></button>}
           {tab !== 'settings' && <button className="icon big" onClick={() => go('settings')} aria-label="Settings"><Icon.gear /></button>}
         </header>
 
@@ -172,6 +197,13 @@ export default function Home({ membership, me, onLeft }) {
 
       <TabBar tabs={TABS} current={tab} onSelect={go} badges={badges} />
       <Toasts toasts={toasts} />
+      <AlertBanner alert={alert} onClose={() => setAlert(null)}
+        onOpen={() => {
+          const to = alert?.open;
+          setAlert(null);
+          if (to === 'chat') { if (tab !== 'discover') go('discover'); openSub('chat'); }
+          else if (to === 'map') go('map');
+        }} />
     </>
   );
 }

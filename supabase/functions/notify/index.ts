@@ -21,7 +21,7 @@ const cors = {
 };
 
 type Sub = { id: string; endpoint: string; p256dh: string; auth: string };
-type Message = { title: string; body: string; tag: string; url: string };
+type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'arrive' | 'leave' | 'item' | 'plan' | 'test' };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function formatTime(t: string | null) {
@@ -55,7 +55,7 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
     const who = await displayName(r.household_id, r.added_by);
     return {
       actor: r.added_by,
-      msg: { title: `${who} added ${r.name}`, body: r.qty ? `${r.qty} · Shopping list` : 'Shopping list', tag: `item-${r.id}`, url: '/?tab=list' },
+      msg: { title: `${who} added ${r.name}`, body: r.qty ? `${r.qty} · Shopping list` : 'Shopping list', tag: `item-${r.id}`, url: '/?tab=list', kind: 'item' },
     };
   }
   if (table === 'plans') {
@@ -69,6 +69,7 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
         body: `${formatDate(r.plan_date)}${time}${where}`,
         tag: `plan-${r.id}`,
         url: '/?tab=plans',
+        kind: 'plan',
       },
     };
   }
@@ -77,7 +78,7 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
     const text = String(r.body ?? '');
     return {
       actor: r.user_id,
-      msg: { title: who, body: text.length > 160 ? text.slice(0, 157) + '…' : text, tag: `chat-${r.household_id}`, url: '/?tab=chat' },
+      msg: { title: who, body: text.length > 160 ? text.slice(0, 157) + '…' : text, tag: `chat-${r.household_id}`, url: '/?tab=chat', kind: 'chat' },
     };
   }
   if (table === 'place_event') {
@@ -90,6 +91,7 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
         body: 'Open Weee to see the map',
         tag: `place-${r.id}-${r.user_id}`,
         url: '/?tab=map',
+        kind: r.event === 'arrived' ? 'arrive' : 'leave',
       },
     };
   }
@@ -140,6 +142,6 @@ Deno.serve(async req => {
   if (!user) return json({ error: 'not signed in' }, 401);
   const { data: subs } = await admin.from('push_subscriptions').select('id, endpoint, p256dh, auth').eq('user_id', user.id);
   if (!subs?.length) return json({ sent: 0, reason: 'no devices' });
-  const sent = await send(subs, { title: 'Weee notifications are on', body: "You'll hear when your partner adds to the list or makes a plan.", tag: 'test', url: '/' });
+  const sent = await send(subs, { title: 'Weee notifications are on', body: "You'll hear when your partner adds to the list or makes a plan.", tag: 'test', url: '/', kind: 'test' });
   return json({ sent });
 });

@@ -10,16 +10,41 @@ cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
 
+// Vibration per kind (Android). iPhone uses its standard notification sound.
+const VIBRATE = {
+  chat: [80, 60, 80],
+  arrive: [120, 80, 120, 80, 220],
+  leave: [220, 100, 120],
+  item: [100],
+  plan: [100, 60, 100],
+  test: [100, 60, 100],
+};
+
 self.addEventListener('push', event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data?.text() }; }
-  event.waitUntil(self.registration.showNotification(data.title || 'Weee', {
-    body: data.body || '',
-    icon: '/pwa-192.png',
-    badge: '/pwa-192.png',
-    tag: data.tag,
-    data: { url: data.url || '/' },
-  }));
+  event.waitUntil((async () => {
+    // If Weee is open on screen it plays its own sound and shows a banner,
+    // so the system notification arrives quietly instead of a double alert.
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const open = windows.some(w => w.visibilityState === 'visible');
+    const options = {
+      body: data.body || '',
+      icon: '/pwa-192.png',
+      badge: '/pwa-192.png',
+      tag: data.tag,
+      data: { url: data.url || '/' },
+      silent: open,
+      timestamp: Date.now(),
+    };
+    if (!open) {
+      options.vibrate = VIBRATE[data.kind] || [100];
+      // A notification that replaces an older one with the same tag (e.g. the chat)
+      // is silent unless renotify is set: always alert again.
+      if (data.tag) options.renotify = true;
+    }
+    await self.registration.showNotification(data.title || 'Weee', options);
+  })());
 });
 
 self.addEventListener('notificationclick', event => {

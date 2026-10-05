@@ -687,3 +687,43 @@ body.kb-open .composer { bottom: calc(var(--kb, 0px) + 10px); }
 .send:disabled { opacity: .3; }
 .send:active { transform: scale(.9); }
 @media (prefers-reduced-motion: reduce) { .msg, .typing-dots i { animation: none; } .tabs { transition: none; } }
+
+/* ---------- stay timer on map pins ---------- */
+.pin-stay {
+  position: absolute; z-index: 2; top: 100%; left: 50%; transform: translate(-50%, 3px); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-style: normal; font-size: 11.5px; font-weight: 700; color: #0A0A0B;
+  padding: 2px 8px; border-radius: 999px; background: #F4F4F5; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- popup banner (arrivals, departures, messages) ---------- */
+.alert-banner {
+  position: fixed; z-index: 9; left: 12px; right: 12px; max-width: 560px; margin-inline: auto;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; gap: 12px; padding: 12px 10px 12px 12px; border-radius: 26px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(58, 60, 70, 0.72), rgba(28, 30, 38, 0.8));
+  -webkit-backdrop-filter: blur(26px) saturate(190%); backdrop-filter: blur(26px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 18px 44px rgba(0, 0, 0, 0.6);
+  animation: banner-in .5s cubic-bezier(.22, 1.2, .36, 1);
+}
+@keyframes banner-in { from { transform: translate3d(0, -120%, 0); opacity: 0; } to { transform: translate3d(0, 0, 0); opacity: 1; } }
+.alert-icon {
+  flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+  background: #F4F4F5; color: #0A0A0B;
+}
+.alert-icon svg { width: 20px; height: 20px; }
+.alert-banner.kind-arrive .alert-icon { background: var(--good); }
+.alert-banner.kind-leave .alert-icon { background: var(--amber); }
+.alert-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.alert-text b { font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; }
+.alert-text span { font-size: 13.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert-close { color: var(--muted); }
+
+/* ---------- chat: delete / clear ---------- */
+.msg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.msg.mine .msg-actions { justify-content: flex-end; }
+.bubble.picked { outline: 2px solid rgba(255, 255, 255, 0.35); outline-offset: 2px; }
+.clear-panel { margin-top: 12px; border-color: rgba(255, 123, 107, 0.2); }
+.sound-tests { margin-top: 10px; }
+@media (prefers-reduced-motion: reduce) { .alert-banner { animation: none; } }

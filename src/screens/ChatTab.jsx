@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ConfirmButton, Empty, Icon } from '../components/ui.jsx';
 import { toDateString, daysUntil } from '../lib/plans.js';
+import { visibleMessages } from '../lib/chat.js';
 
 const GROUP_GAP_MS = 5 * 60000;
 
@@ -15,10 +16,11 @@ const timeOf = iso => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric
 export default function ChatTab({ hh, actions, nameOf, me, now }) {
   const [text, setText] = useState('');
   const [selected, setSelected] = useState(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [, tick] = useState(0);
   const inputRef = useRef(null);
   const firstScroll = useRef(true);
-  const msgs = hh.messages;
+  const msgs = visibleMessages(hh, me);
   const others = hh.members.filter(m => m.user_id !== me);
 
   // Read receipts: opening the chat (or a new message arriving while it is open) marks it read.
@@ -56,6 +58,13 @@ export default function ChatTab({ hh, actions, nameOf, me, now }) {
       document.body.classList.remove('kb-open');
       document.documentElement.style.removeProperty('--kb');
     };
+  }, []);
+
+  // header trash button asks to clear the chat
+  useEffect(() => {
+    const ask = () => { setConfirmClear(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    window.addEventListener('weee:clear-chat', ask);
+    return () => window.removeEventListener('weee:clear-chat', ask);
   }, []);
 
   // header "+" focuses the message box
@@ -102,10 +111,12 @@ export default function ChatTab({ hh, actions, nameOf, me, now }) {
     items.push(
       <div key={m.id} className={`msg${mine ? ' mine' : ''}${joinsPrev ? ' joins-prev' : ''}${joinsNext ? ' joins-next' : ''}${m.pending ? ' pending' : ''}`}>
         {!mine && !joinsPrev && others.length > 1 && <div className="msg-who">{nameOf(m.user_id)}</div>}
-        <div className="bubble" onClick={() => mine && !m.pending && setSelected(s => (s === m.id ? null : m.id))}>{m.body}</div>
+        <div className={`bubble${selected === m.id ? ' picked' : ''}`} onClick={() => !m.pending && setSelected(s => (s === m.id ? null : m.id))}>{m.body}</div>
         {selected === m.id && (
           <div className="msg-actions">
-            <ConfirmButton className="btn ghost small" label="Unsend message" confirmLabel="Tap to unsend" onConfirm={() => { setSelected(null); actions.unsendMessage(m); }}>Unsend</ConfirmButton>
+            <button type="button" className="btn ghost small" onClick={() => { setSelected(null); actions.hideMessage(m); }}><Icon.trash /> Delete for me</button>
+            {mine && <ConfirmButton className="btn danger small" label="Unsend for everyone" confirmLabel="Tap to unsend"
+              onConfirm={() => { setSelected(null); actions.unsendMessage(m); }}>Unsend for everyone</ConfirmButton>}
           </div>
         )}
         {!joinsNext && <div className="msg-time">{m.pending ? 'Sending…' : timeOf(m.created_at)}{mine && m.id === lastMine?.id && seen ? ' · Seen' : ''}</div>}
@@ -115,6 +126,16 @@ export default function ChatTab({ hh, actions, nameOf, me, now }) {
 
   return (
     <section className="chat">
+      {confirmClear && (
+        <div className="panel clear-panel">
+          <div className="panel-title">Clear this chat?</div>
+          <p className="sub tight">All messages are removed for you. {others.length ? `${others.map(o => o.display_name).join(' and ')} keep${others.length === 1 ? 's' : ''} their copy.` : ''}</p>
+          <div className="stack-row">
+            <button type="button" className="btn danger" onClick={async () => { if (await actions.clearChat()) setConfirmClear(false); }}>Clear chat</button>
+            <button type="button" className="btn ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
       {!hh.loaded ? <Empty title="Loading…" /> : msgs.length === 0 ? (
         <Empty title="No messages yet">
           {others.length ? `Say hi to ${others.map(o => o.display_name).join(' and ')}. ` : 'Invite your partner from Settings to start chatting. '}

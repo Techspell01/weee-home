@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 // Everything a household shares. Each table is fetched once, then refetched
 // whenever Supabase Realtime reports a change, so every phone stays in sync.
 const TABLES = {
-  members: { table: 'household_members', select: 'user_id, display_name, joined_at, share_location, last_seen, chat_read_at', order: 'joined_at' },
+  members: { table: 'household_members', select: 'user_id, display_name, joined_at, share_location, last_seen, chat_read_at, chat_cleared_at', order: 'joined_at' },
   items: { table: 'items', select: '*', order: 'added_at' },
   pantry: { table: 'pantry', select: '*', order: 'name' },
   expenses: { table: 'expenses', select: '*', order: 'created_at' },
@@ -15,9 +15,10 @@ const TABLES = {
   // newest 300 messages, shown oldest first
   messages: { table: 'messages', select: '*', order: 'created_at', desc: true, limit: 300 },
   visits: { table: 'place_visits', select: '*', order: 'arrived_at', desc: true, limit: 200 },
+  hides: { table: 'message_hides', select: 'message_id', order: 'message_id' }, // only my own (RLS)
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [], visits: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [], visits: [], hides: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item or a plan,
 // or arrives at / leaves a saved place ('presence').
@@ -75,7 +76,8 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
           }
         }
         // place_presence rows only change when someone really arrives or leaves
-        if (key === 'presence' && payload.eventType === 'UPDATE' && row.user_id !== me) onRemoteInsertRef.current?.(key, row);
+        // (including my own, so I see "You arrived at Office" too)
+        if (key === 'presence' && payload.eventType === 'UPDATE') onRemoteInsertRef.current?.(key, row);
         schedule(key);
       });
     }

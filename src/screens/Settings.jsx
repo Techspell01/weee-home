@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js';
 import { ConfirmButton } from '../components/ui.jsx';
 import PushSettings from '../components/PushSettings.jsx';
 import { haptic, hapticsEnabled, hapticsSupported, setHapticsEnabled } from '../lib/haptics.js';
+import { playSound, setSoundsEnabled, soundsEnabled } from '../lib/sounds.js';
 
 export default function Settings({ household, me, myName, hh, actions, nameOf, notify, onLeft }) {
   const [displayName, setDisplayName] = useState(myName);
@@ -11,6 +12,7 @@ export default function Settings({ household, me, myName, hh, actions, nameOf, n
   const alone = hh.members.filter(m => m.user_id !== me).length === 0;
   const [houseName, setHouseName] = useState(household.name);
   const [vibrate, setVibrate] = useState(hapticsEnabled);
+  const [sounds, setSounds] = useState(soundsEnabled);
 
   async function copyCode() {
     try { await navigator.clipboard.writeText(household.invite_code); notify('Invite code copied'); }
@@ -50,6 +52,19 @@ export default function Settings({ household, me, myName, hh, actions, nameOf, n
 
       <div className="label">Notifications</div>
       <PushSettings householdId={household.id} notify={notify} />
+
+      <div className="label">Sounds</div>
+      <label className="panel toggle-row">
+        <span className="grow"><b>Sounds in Weee</b><span className="meta block">A chime when someone arrives or leaves a place, and a pop for new messages, while Weee is open.</span></span>
+        <input id="soundsToggle" type="checkbox" role="switch" checked={sounds}
+          onChange={e => { setSoundsEnabled(e.target.checked); setSounds(e.target.checked); if (e.target.checked) playSound('arrive'); }} />
+      </label>
+      <div className="stack-row sound-tests">
+        <button type="button" className="btn ghost small" onClick={() => playSound('arrive')}>Play arrive</button>
+        <button type="button" className="btn ghost small" onClick={() => playSound('leave')}>Play leave</button>
+        <button type="button" className="btn ghost small" onClick={() => playSound('chat')}>Play message</button>
+      </div>
+      <p className="hint">When Weee is closed, notifications use your phone's notification sound. On iPhone, check Settings → Notifications → Weee → Sounds is on.</p>
 
       {hapticsSupported() && <>
         <div className="label">Feel</div>

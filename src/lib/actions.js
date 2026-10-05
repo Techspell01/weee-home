@@ -138,6 +138,17 @@ export function makeActions({ householdId, me, hh, notify }) {
       hh.drop('messages', r => r.id === m.id);
       return run(supabase.from('messages').delete().eq('id', m.id), 'messages');
     },
+    hideMessage(m) {
+      hh.add('hides', { message_id: m.id });
+      return run(supabase.from('message_hides').insert({ message_id: m.id, household_id: householdId }), 'hides');
+    },
+    async clearChat() {
+      const at = now();
+      const ok = await run(supabase.from('household_members').update({ chat_cleared_at: at, chat_read_at: at })
+        .eq('household_id', householdId).eq('user_id', me), 'members');
+      if (ok) haptic('success');
+      return ok;
+    },
     markChatRead() {
       return supabase.from('household_members').update({ chat_read_at: now() })
         .eq('household_id', householdId).eq('user_id', me).then(() => hh.refresh('members'));

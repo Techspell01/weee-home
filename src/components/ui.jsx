@@ -100,3 +100,19 @@ export function Ring({ value = 0, total = 1, size = 62, stroke = 3, children }) 
 export function BigValue({ value, unit, className = '' }) {
   return <div className={`big-value ${className}`}>{value}{unit && <span className="unit">{unit}</span>}</div>;
 }
+
+// Popup banner that slides down from the top (arrivals, departures, messages).
+export function AlertBanner({ alert, onOpen, onClose }) {
+  if (!alert) return null;
+  const Glyph = alert.kind === 'chat' ? Icon.chat : Icon.map;
+  return (
+    <div className={`alert-banner kind-${alert.kind}`} key={alert.key} role="alert" onClick={onOpen}>
+      <span className="alert-icon"><Glyph /></span>
+      <span className="alert-text">
+        <b>{alert.title}</b>
+        {alert.body && <span>{alert.body}</span>}
+      </span>
+      <button type="button" className="icon alert-close" aria-label="Dismiss" onClick={e => { e.stopPropagation(); onClose(); }}><Icon.x /></button>
+    </div>
+  );
+}

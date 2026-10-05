@@ -21,6 +21,7 @@ const ACT_SVG = {
   cycling: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2 7M14 6h2"/></svg>',
   driving: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM5 11h14"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="1"/></svg>',
 };
+const CLOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
 const clock = iso => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 function dayName(iso, now) {
@@ -54,6 +55,19 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     const place = pr && hh.places.find(pl => pl.id === pr.place_id);
     return place ? { place, since: Date.parse(pr.changed_at) } : null;
   };
+  // How long someone has been staying where they are: since they entered a saved
+  // place, or since they stopped moving anywhere else. Counts only up to the last
+  // update, so a closed app doesn't keep the timer running.
+  const stayFor = id => {
+    const l = locOf(id);
+    if (!l) return null;
+    const saved = stayOf(id);
+    const since = saved ? saved.since : l.still_since ? Date.parse(l.still_since) : null;
+    if (!since) return null;
+    const end = isFresh(l, now) ? now : Date.parse(l.updated_at);
+    return { ms: Math.max(0, end - since), place: saved?.place || null };
+  };
+  const STAY_MIN = 3 * 60000; // don't show a timer for brief stops
   const movingOf = id => { const l = locOf(id); return isFresh(l, now) && l.activity && l.activity !== 'still' ? l : null; };
   const people = [...hh.members].sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
   const shown = people.filter(m => m.share_location && locOf(m.user_id));
@@ -92,7 +106,7 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   }, [adding, ready]);
 
   // ---------- people markers ----------
-  const peopleKey = shown.map(m => { const l = locOf(m.user_id); return `${m.user_id}:${l.lat}:${l.lng}:${isOnline(m.user_id)}:${m.display_name}:${l.activity}:${kmh(l.speed)}:${isFresh(l, now)}`; }).join('|');
+  const peopleKey = shown.map(m => { const l = locOf(m.user_id); const st = stayFor(m.user_id); return `${m.user_id}:${l.lat}:${l.lng}:${isOnline(m.user_id)}:${m.display_name}:${l.activity}:${kmh(l.speed)}:${isFresh(l, now)}:${st ? Math.floor(st.ms / 60000) : ''}`; }).join('|');
   useEffect(() => {
     const m = map.current;
     if (!m) return;
@@ -104,8 +118,11 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
         className: 'pin-wrap',
         html: (() => {
           const mv = movingOf(p.user_id);
+          const st = stayFor(p.user_id);
           return `<div class="pin${isOnline(p.user_id) ? ' online' : ''}${p.user_id === me ? ' me' : ''}${mv ? ' moving' : ''}"><span>${esc(initialOf(p.display_name))}</span>`
-            + (mv ? `<b class="pin-act">${ACT_SVG[mv.activity] || ''}</b><em class="pin-speed">${kmh(mv.speed)} km/h</em>` : '') + '</div>';
+            + (mv ? `<b class="pin-act">${ACT_SVG[mv.activity] || ''}</b><em class="pin-speed">${kmh(mv.speed)} km/h</em>` : '')
+            + (!mv && st && st.ms >= STAY_MIN ? `<em class="pin-stay">${CLOCK_SVG}${esc(formatStay(st.ms))}</em>` : '')
+            + '</div>';
         })(),
         iconSize: [46, 46],
         iconAnchor: [23, 23],
@@ -248,8 +265,9 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     if (!l) return 'Waiting for a location';
     const mv = movingOf(m.user_id);
     if (mv) return `${ACTIVITY_LABEL[mv.activity]} · ${kmh(mv.speed)} km/h`;
-    const stay = stayOf(m.user_id);
-    if (stay) return `At ${stay.place.name} · ${formatStay(now - stay.since)}`;
+    const stay = stayFor(m.user_id);
+    if (stay?.place) return `At ${stay.place.name} · ${formatStay(stay.ms)}`;
+    if (stay && stay.ms >= STAY_MIN) return `Here for ${formatStay(stay.ms)}`;
     if (m.user_id !== me && myLoc) return `${formatDistance(distanceM(myLoc, l))} away`;
     return 'Sharing location';
   };
