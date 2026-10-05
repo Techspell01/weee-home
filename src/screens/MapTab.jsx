@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { BigValue, ConfirmButton, Empty, Icon } from '../components/ui.jsx';
-import { distanceM, formatDistance, geoSupported, requestPosition } from '../lib/location.js';
-import { ago } from '../lib/time.js';
+import { ACTIVITY_LABEL, distanceM, formatDistance, geoSupported, isFresh, kmh, requestPosition } from '../lib/location.js';
+import { ago, formatStay } from '../lib/time.js';
 import { haptic } from '../lib/haptics.js';
 
 // Standard OpenStreetMap tiles (free, no key, attribution required), darkened
@@ -14,6 +14,20 @@ const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">Op
 const RADII = [100, 200, 500];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initialOf = name => (name || '?').trim().charAt(0).toUpperCase();
+
+// Small activity glyphs for the map pins (plain SVG strings for Leaflet markers).
+const ACT_SVG = {
+  walking: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8"/><path d="M10 21l2-6 3 3v5M9 12l2-4 3 2 3 1M11 8l-2 4-3 1"/></svg>',
+  cycling: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2 7M14 6h2"/></svg>',
+  driving: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM5 11h14"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="1"/></svg>',
+};
+
+const clock = iso => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+function dayName(iso, now) {
+  const d = new Date(iso), t = new Date(now);
+  const days = Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
 
 export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   const mapEl = useRef(null);
@@ -28,16 +42,19 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState(null);
 
   const mine = hh.members.find(m => m.user_id === me);
   const sharing = Boolean(mine?.share_location);
   const locOf = id => hh.locations.find(l => l.user_id === id);
   const myLoc = locOf(me);
   const isOnline = id => hh.online.includes(id);
-  const placeOf = id => {
-    const pr = hh.presence.find(p => p.user_id === id && p.inside);
-    return pr ? hh.places.find(pl => pl.id === pr.place_id) : null;
+  const stayOf = id => {
+    const pr = hh.presence.find(x => x.user_id === id && x.inside);
+    const place = pr && hh.places.find(pl => pl.id === pr.place_id);
+    return place ? { place, since: Date.parse(pr.changed_at) } : null;
   };
+  const movingOf = id => { const l = locOf(id); return isFresh(l, now) && l.activity && l.activity !== 'still' ? l : null; };
   const people = [...hh.members].sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
   const shown = people.filter(m => m.share_location && locOf(m.user_id));
 
@@ -75,7 +92,7 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   }, [adding, ready]);
 
   // ---------- people markers ----------
-  const peopleKey = shown.map(m => { const l = locOf(m.user_id); return `${m.user_id}:${l.lat}:${l.lng}:${isOnline(m.user_id)}:${m.display_name}`; }).join('|');
+  const peopleKey = shown.map(m => { const l = locOf(m.user_id); return `${m.user_id}:${l.lat}:${l.lng}:${isOnline(m.user_id)}:${m.display_name}:${l.activity}:${kmh(l.speed)}:${isFresh(l, now)}`; }).join('|');
   useEffect(() => {
     const m = map.current;
     if (!m) return;
@@ -85,7 +102,11 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
       seen.add(p.user_id);
       const icon = L.divIcon({
         className: 'pin-wrap',
-        html: `<div class="pin${isOnline(p.user_id) ? ' online' : ''}${p.user_id === me ? ' me' : ''}"><span>${esc(initialOf(p.display_name))}</span></div>`,
+        html: (() => {
+          const mv = movingOf(p.user_id);
+          return `<div class="pin${isOnline(p.user_id) ? ' online' : ''}${p.user_id === me ? ' me' : ''}${mv ? ' moving' : ''}"><span>${esc(initialOf(p.display_name))}</span>`
+            + (mv ? `<b class="pin-act">${ACT_SVG[mv.activity] || ''}</b><em class="pin-speed">${kmh(mv.speed)} km/h</em>` : '') + '</div>';
+        })(),
         iconSize: [46, 46],
         iconAnchor: [23, 23],
       });
@@ -225,8 +246,10 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     const l = locOf(m.user_id);
     if (!m.share_location) return 'Location off';
     if (!l) return 'Waiting for a location';
-    const at = placeOf(m.user_id);
-    if (at) return `At ${at.name}`;
+    const mv = movingOf(m.user_id);
+    if (mv) return `${ACTIVITY_LABEL[mv.activity]} · ${kmh(mv.speed)} km/h`;
+    const stay = stayOf(m.user_id);
+    if (stay) return `At ${stay.place.name} · ${formatStay(now - stay.since)}`;
     if (m.user_id !== me && myLoc) return `${formatDistance(distanceM(myLoc, l))} away`;
     return 'Sharing location';
   };
@@ -275,13 +298,15 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
           const l = locOf(m.user_id);
           const online = isOnline(m.user_id);
           const battery = l?.battery;
+          const mv = m.share_location ? movingOf(m.user_id) : null;
           return (
             <button key={m.user_id} type="button" className="tile person" onClick={() => l && m.share_location && flyTo(l.lat, l.lng)}>
               <div className="tile-top">
                 <span className={`face${online ? ' online' : ''}`}>{initialOf(m.display_name)}</span>
-                {battery != null && <span className="batt-wrap">{Icon.battery(battery, l.charging)}</span>}
+                {battery != null && <span className="batt-wrap">{Icon.battery(battery, l.charging)}<small>{battery}%</small></span>}
               </div>
-              {battery != null && <BigValue value={battery} unit="%" />}
+              {mv ? <BigValue value={kmh(mv.speed)} unit="km/h" className="speed" />
+                : battery != null ? <BigValue value={battery} unit="%" /> : null}
               <div className="tile-title">{m.user_id === me ? 'You' : m.display_name}</div>
               <div className="tile-sub">{statusLine(m)}</div>
               <div className="tile-sub faint">
@@ -315,19 +340,42 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
       ) : (
         <div className="list">
           {hh.places.map(p => {
-            const here = hh.presence.filter(pr => pr.place_id === p.id && pr.inside).map(pr => pr.user_id);
+            const here = hh.presence.filter(pr => pr.place_id === p.id && pr.inside);
+            const visits = hh.visits.filter(v => v.place_id === p.id).slice().reverse().slice(0, 8);
+            const showing = history === p.id;
             return (
-              <div key={p.id} className="row place">
+              <div key={p.id} className={`row place${showing ? ' open' : ''}`}>
                 <button type="button" className="place-dot" onClick={() => flyTo(p.lat, p.lng)} aria-label={`Show ${p.name} on the map`}><Icon.map /></button>
                 <div className="main" onClick={() => flyTo(p.lat, p.lng)}>
                   <div className="name">{p.name}</div>
                   <div className="meta">
-                    {here.length ? `${here.map(nameOf).join(', ')} ${here.length === 1 && here[0] !== me ? 'is' : 'are'} here` : 'Nobody here'} · {p.radius_m} m
+                    {here.length
+                      ? here.map(pr => `${nameOf(pr.user_id)} here · ${formatStay(now - Date.parse(pr.changed_at))}`).join(' · ')
+                      : 'Nobody here'} · {p.radius_m} m
                   </div>
+                  {visits.length > 0 && (
+                    <button type="button" className="link small-link" onClick={e => { e.stopPropagation(); setHistory(showing ? null : p.id); }}>
+                      {showing ? 'Hide history' : `History · ${visits.length} visit${visits.length === 1 ? '' : 's'}`}
+                    </button>
+                  )}
                 </div>
                 <button type="button" className={`icon${p.notify ? ' bell-on' : ''}`} data-haptic="select" onClick={() => actions.togglePlaceAlerts(p)}
                   aria-label={p.notify ? `Turn off alerts for ${p.name}` : `Turn on alerts for ${p.name}`} aria-pressed={p.notify}>{Icon.bell(p.notify)}</button>
                 <ConfirmButton label={`Delete ${p.name}`} confirmLabel="Delete?" onConfirm={() => actions.removePlace(p)}><Icon.trash /></ConfirmButton>
+                {showing && (
+                  <div className="visits">
+                    {visits.map(v => {
+                      const end = v.left_at ? Date.parse(v.left_at) : now;
+                      return (
+                        <div key={v.id} className="visit">
+                          <span className="visit-who">{nameOf(v.user_id)}</span>
+                          <span className="visit-when">{dayName(v.arrived_at, now)} · {clock(v.arrived_at)}{v.left_at ? ` – ${clock(v.left_at)}` : ' – now'}</span>
+                          <span className="visit-len">{formatStay(end - Date.parse(v.arrived_at))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

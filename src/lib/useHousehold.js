@@ -14,9 +14,10 @@ const TABLES = {
   presence: { table: 'place_presence', select: '*', order: 'changed_at' },
   // newest 300 messages, shown oldest first
   messages: { table: 'messages', select: '*', order: 'created_at', desc: true, limit: 300 },
+  visits: { table: 'place_visits', select: '*', order: 'arrived_at', desc: true, limit: 200 },
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [], visits: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item or a plan,
 // or arrives at / leaves a saved place ('presence').

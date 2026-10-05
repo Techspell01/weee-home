@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'Weee',
         short_name: 'Weee',
         description: 'Shared plans, shopping list, pantry and spending for your household.',
-        theme_color: '#07080C',
-        background_color: '#07080C',
+        theme_color: '#0A0A0B',
+        background_color: '#0A0A0B',
         display: 'standalone',
         start_url: '/',
         icons: [

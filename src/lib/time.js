@@ -10,3 +10,13 @@ export function ago(iso, now = Date.now()) {
 }
 
 export const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// How long a stay has lasted: "just arrived", "25 min", "2 h 5 min", "1 d 3 h".
+export function formatStay(ms) {
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just arrived';
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h < 24) return m ? `${h} h ${m} min` : `${h} h`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}

@@ -2,17 +2,45 @@ import { useLayoutEffect, useRef } from 'react';
 import { haptic } from '../lib/haptics.js';
 
 // iOS liquid-glass tab bar. At rest the selected tab sits in a clear lens.
-// Tapping another tab lifts the lens, stretches it like liquid toward the new
-// tab, then squashes and settles. Pressing and sliding along the bar drags the
-// lens with your finger (a tick for each tab passed) and drops it where you let go.
+// Tapping another tab moves the lens like a drop of liquid: the leading edge
+// springs ahead, the trailing edge follows, so it stretches and then settles.
+// Pressing and sliding along the bar drags the lens with your finger.
+//
+// Smoothness: only `transform` is animated (GPU-composited, no layout or
+// re-blur of the bar), from densely sampled keyframes with linear interpolation.
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const EASE = 'cubic-bezier(.3, .7, .25, 1)';
+
+// easing curves (t: 0..1)
+const easeInOutCubic = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const springOut = t => { // ease-out with a small, soft overshoot
+  const c1 = 0.9, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};
+
+// Keyframes for moving from slot `from` to slot `to` (units = one tab width).
+function liquidFrames(from, to, steps = 30) {
+  const d = to - from;
+  const frames = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const lead = springOut(Math.min(1, t * 1.12));   // front edge, quick
+    const trail = easeInOutCubic(t);                 // back edge, lags behind
+    let left, right;
+    if (d > 0) { right = from + 1 + d * lead; left = from + d * trail; }
+    else { left = from + d * lead; right = from + 1 + d * trail; }
+    const width = Math.max(0.85, right - left);
+    const squash = 1 - Math.min(0.08, (width - 1) * 0.07); // a stretched drop gets a little thinner
+    frames.push({ transform: `translateX(${left * 100}%) scale(${width.toFixed(4)}, ${squash.toFixed(4)})`, offset: t });
+  }
+  return frames;
+}
 
 export default function TabBar({ tabs, current, onSelect, badges = {} }) {
   const navRef = useRef(null);
   const inRef = useRef(null);
   const pillRef = useRef(null);
+  const anim = useRef(null);
   const index = tabs.findIndex(t => t.id === current);
   const prevIndex = useRef(index);
   const drag = useRef(null);
@@ -21,6 +49,13 @@ export default function TabBar({ tabs, current, onSelect, badges = {} }) {
   const n = tabs.length;
 
   const setMoving = on => navRef.current?.classList.toggle('moving', on);
+  const play = (frames, duration) => {
+    anim.current?.cancel();
+    setMoving(true);
+    const a = pillRef.current.animate(frames, { duration, easing: 'linear' });
+    anim.current = a;
+    a.onfinish = () => { if (anim.current === a) { setMoving(false); anim.current = null; } };
+  };
 
   // Move the lens whenever the selected tab changes.
   useLayoutEffect(() => {
@@ -33,45 +68,36 @@ export default function TabBar({ tabs, current, onSelect, badges = {} }) {
     pill.style.transform = `translateX(${index * 100}%)`;
     if (skipNext.current) { skipNext.current = false; return; } // a drag already animated it
     if (from < 0 || from === index || reduceMotion()) return;
-
-    const dir = Math.sign(index - from);
-    const dist = Math.abs(index - from);
-    const mid = ((from + index) / 2) * 100;
-    setMoving(true);
-    const anim = pill.animate([
-      { transform: `translateX(${from * 100}%) scale(1, 1)` },
-      { transform: `translateX(${from * 100 + dir * 10}%) scale(1.16, 1.14)`, offset: 0.18 },
-      { transform: `translateX(${mid}%) scale(${1.15 + 0.32 * dist}, 1.06)`, offset: 0.52 },
-      { transform: `translateX(${index * 100 + dir * 4}%) scale(0.92, 1.1)`, offset: 0.8 },
-      { transform: `translateX(${index * 100}%) scale(1.03, 0.98)`, offset: 0.92 },
-      { transform: `translateX(${index * 100}%) scale(1, 1)` },
-    ], { duration: 560 + 90 * (dist - 1), easing: EASE });
-    anim.onfinish = anim.oncancel = () => setMoving(false);
-  }, [index]);
+    play(liquidFrames(from, index), 520 + 70 * (Math.abs(index - from) - 1));
+  }, [index]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- press and slide ----
   function onPointerDown(e) {
     if (index < 0 || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    const rect = inRef.current.getBoundingClientRect();
-    drag.current = { id: e.pointerId, startX: e.clientX, rect, slot: index, active: false, x: 0 };
+    drag.current = { id: e.pointerId, startX: e.clientX, rect: inRef.current.getBoundingClientRect(), slot: index, active: false, x: 0, raf: 0 };
   }
 
   function onPointerMove(e) {
     const d = drag.current;
     if (!d || e.pointerId !== d.id) return;
-    const dx = e.clientX - d.startX;
     if (!d.active) {
-      if (Math.abs(dx) < 8) return;
+      if (Math.abs(e.clientX - d.startX) < 8) return;
       d.active = true;
       inRef.current.setPointerCapture?.(d.id);
+      anim.current?.cancel();
       setMoving(true);
       navRef.current.classList.add('dragging');
     }
     const w = d.rect.width / n;
-    const x = Math.max(-w * 0.12, Math.min(w * (n - 1) + w * 0.12, e.clientX - d.rect.left - w / 2));
-    d.x = x;
-    pillRef.current.style.transform = `translateX(${x}px) scale(1.14, 1.1)`;
-    const slot = Math.max(0, Math.min(n - 1, Math.round(x / w)));
+    d.x = Math.max(-w * 0.1, Math.min(w * (n - 1) + w * 0.1, e.clientX - d.rect.left - w / 2));
+    if (!d.raf) {
+      d.raf = requestAnimationFrame(() => {
+        d.raf = 0;
+        // grown a little while held; offset keeps it centred under the finger
+        pillRef.current.style.transform = `translateX(${d.x - w * 0.04}px) scale(1.08, 1.06)`;
+      });
+    }
+    const slot = Math.max(0, Math.min(n - 1, Math.round(d.x / w)));
     if (slot !== d.slot) { d.slot = slot; haptic('tick'); }
   }
 
@@ -79,18 +105,24 @@ export default function TabBar({ tabs, current, onSelect, badges = {} }) {
     const d = drag.current;
     drag.current = null;
     if (!d || !d.active) return;
+    if (d.raf) cancelAnimationFrame(d.raf);
     suppressClick.current = true;
     setTimeout(() => { suppressClick.current = false; }, 0);
     navRef.current.classList.remove('dragging');
+    const w = d.rect.width / n;
     const pill = pillRef.current;
-    const end = `translateX(${d.slot * 100}%)`;
-    pill.style.transform = end;
-    const anim = pill.animate([
-      { transform: `translateX(${d.x}px) scale(1.14, 1.1)` },
-      { transform: `translateX(${d.slot * 100}%) scale(0.94, 1.06)`, offset: 0.65 },
-      { transform: `${end} scale(1, 1)` },
-    ], { duration: reduceMotion() ? 1 : 380, easing: EASE });
-    anim.onfinish = anim.oncancel = () => setMoving(false);
+    pill.style.transform = `translateX(${d.slot * 100}%)`;
+    if (!reduceMotion()) {
+      const startPx = d.x - w * 0.04;
+      const frames = [];
+      for (let i = 0; i <= 20; i++) {
+        const t = i / 20, k = springOut(t);
+        const px = startPx + (d.slot * w - startPx) * k;
+        const sx = 1.08 + (1 - 1.08) * k, sy = 1.06 + (1 - 1.06) * k;
+        frames.push({ transform: `translateX(${px.toFixed(2)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`, offset: t });
+      }
+      play(frames, 420);
+    } else setMoving(false);
     const target = tabs[d.slot];
     if (target.id !== current) { skipNext.current = true; haptic('select'); onSelect(target.id); }
   }

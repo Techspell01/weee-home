@@ -35,6 +35,14 @@ function formatDate(d: string | null) {
   return new Date(Date.UTC(y, mo - 1, day)).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
+// "25 min", "2 h 5 min", "1 d 3 h"
+function stayed(minutes: number) {
+  if (minutes < 60) return `${Math.max(1, minutes)} min`;
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  if (h < 24) return m ? `${h} h ${m} min` : `${h} h`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
 async function displayName(householdId: string, userId: string | null) {
   if (!userId) return 'Someone';
   const { data } = await admin.from('household_members').select('display_name')
@@ -77,7 +85,8 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
     return {
       actor: r.user_id,
       msg: {
-        title: r.event === 'arrived' ? `${who} arrived at ${r.place}` : `${who} left ${r.place}`,
+        title: r.event === 'arrived' ? `${who} arrived at ${r.place}`
+          : `${who} left ${r.place}${r.minutes != null ? ` after ${stayed(r.minutes)}` : ''}`,
         body: 'Open Weee to see the map',
         tag: `place-${r.id}-${r.user_id}`,
         url: '/?tab=map',

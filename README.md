@@ -10,7 +10,7 @@
 |---|---|
 | **Plans** | A scrollable row of days. Each day shows plans you have **together** (dates, outings, trips, family) and **each person's own schedule** (work, appointments, errands with start and end times), so you can see each other's day. Undated plans are saved as **Ideas**. Places open in Google Maps. |
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
-| **Places** | A live map of everyone who shares their location, with battery level, "online now" (a slow green heartbeat) and last seen. Save places like Home, Office or a café; when someone arrives or leaves, everyone else gets a notification. Each person turns sharing on for themselves, and only the latest position is kept. |
+| **Places** | A live map of everyone who shares their location, with battery level, walking/riding/driving and speed (from GPS), "online now" (a slow green heartbeat) and last seen. Shows how long someone has been at a saved place, with 30 days of visit history. Save places like Home, Office or a café; when someone arrives or leaves, everyone else gets a notification. Each person turns sharing on for themselves, and only the latest position is kept. |
 | **Chat** | A private chat for the household with "typing…", "Seen" receipts, unsend, and push notifications for new messages. |
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
 | **Money** | Monthly spending by category (groceries, outings, rent, bills, travel…), equal splits, "who owes whom", and settle-up. |
@@ -86,6 +86,7 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `member_locations` | each sharing person's latest position, accuracy and battery (one row each, no history) |
 | `places` | saved places with a radius and an alerts on/off switch |
 | `place_presence` | who is inside which place; changes trigger arrive/leave notifications |
+| `place_visits` | each stay at a saved place (arrived, left), kept 30 days; leave alerts say how long the stay was |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |
 
 Households are created and joined through the `create_household` and `join_household` functions. `record_purchase` updates the pantry and learns how long each product lasts. `delete_my_account` removes a user and any household they were the last member of.
