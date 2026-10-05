@@ -184,7 +184,7 @@ export default function Home({ membership, me, onLeft }) {
             <div className="sync">
               <span className={`dot ${hh.status}`} />
               <span className="sync-text">
-                {household.name} · {hh.status === 'live'
+                {household.name} · {hh.status === 'live' || hh.status === 'polling'
                   ? (others === 0 ? 'invite your partner from Settings' : others === 1 ? `with ${partner.display_name}` : `${others + 1} people`)
                   : hh.status === 'offline' ? 'offline, will sync when back' : 'connecting…'}
               </span>

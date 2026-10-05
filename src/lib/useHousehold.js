@@ -53,43 +53,86 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
     setLoaded(false);
     refreshAll();
 
+    let channel = null;
+    let closed = false;
+    let retry = 0, retryTimer = 0, pollTimer = 0;
+
     const schedule = key => {
       clearTimeout(timers.current[key]);
       timers.current[key] = setTimeout(() => refresh(key), 120);
     };
 
-    const channel = supabase.channel(`household:${householdId}`, { config: { presence: { key: me } } });
-    channel.on('presence', { event: 'sync' }, () => setOnline(Object.keys(channel.presenceState())));
-    channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
-      if (payload?.user && payload.user !== me) setTyping(t => ({ ...t, [payload.user]: Date.now() }));
-    });
-    channelRef.current = channel;
-    for (const [key, t] of Object.entries(TABLES)) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table: t.table }, payload => {
-        const row = payload.new;
-        if (row?.household_id && row.household_id !== householdId) return;
-        if (payload.eventType === 'INSERT') {
-          if (key === 'items' && row.added_by !== me) onRemoteInsertRef.current?.(key, row);
-          if (key === 'plans' && row.created_by !== me) onRemoteInsertRef.current?.(key, row);
-          if (key === 'messages' && row.user_id !== me) {
-            onRemoteInsertRef.current?.(key, row);
-            setTyping(t => ({ ...t, [row.user_id]: 0 })); // they sent it, so they stopped typing
-          }
+    // Safety net: if live updates are unavailable, keep the screen fresh by
+    // re-fetching every 5 seconds while the app is open.
+    const startPolling = () => {
+      if (!pollTimer) pollTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshAll(); }, 5000);
+    };
+    const stopPolling = () => { clearInterval(pollTimer); pollTimer = 0; };
+
+    const onChange = key => payload => {
+      const row = payload.new;
+      if (row?.household_id && row.household_id !== householdId) return;
+      if (payload.eventType === 'INSERT') {
+        if (key === 'items' && row.added_by !== me) onRemoteInsertRef.current?.(key, row);
+        if (key === 'plans' && row.created_by !== me) onRemoteInsertRef.current?.(key, row);
+        if (key === 'messages' && row.user_id !== me) {
+          onRemoteInsertRef.current?.(key, row);
+          setTyping(t => ({ ...t, [row.user_id]: 0 })); // they sent it, so they stopped typing
         }
-        // place_presence rows only change when someone really arrives or leaves
-        // (including my own, so I see "You arrived at Office" too)
-        if (key === 'presence' && payload.eventType === 'UPDATE') onRemoteInsertRef.current?.(key, row);
-        schedule(key);
-      });
-    }
-    channel.subscribe(s => {
-      if (s === 'SUBSCRIBED') {
-        setStatus('live');
-        refreshAll(); // catch up on anything missed while away
-        if (document.visibilityState === 'visible') channel.track({ at: new Date().toISOString() });
       }
-      else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') setStatus('offline');
-    });
+      // place_presence rows only change when someone really arrives or leaves
+      // (including my own, so I see "You arrived at Office" too)
+      if (key === 'presence' && payload.eventType === 'UPDATE') onRemoteInsertRef.current?.(key, row);
+      schedule(key);
+    };
+
+    // (Re)open the live channel. Called at start, after errors (with backoff),
+    // and whenever the app comes back and finds the connection dead (iOS drops
+    // it while the app is in the background).
+    const connect = () => {
+      if (closed) return;
+      const old = channel;
+      channel = null;
+      if (old) supabase.removeChannel(old);
+
+      const ch = supabase.channel(`household:${householdId}`, { config: { presence: { key: me } } });
+      channel = ch;
+      channelRef.current = ch;
+      ch.on('presence', { event: 'sync' }, () => setOnline(Object.keys(ch.presenceState())));
+      ch.on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload?.user && payload.user !== me) setTyping(t => ({ ...t, [payload.user]: Date.now() }));
+      });
+      // Supabase reports whether the database changes subscription was accepted.
+      ch.on('system', {}, msg => {
+        if (ch !== channel || msg?.extension !== 'postgres_changes') return;
+        if (msg.status === 'ok') { stopPolling(); setStatus('live'); }
+        else { console.warn('Live updates unavailable, refreshing every 5 s instead:', msg.message); setStatus('polling'); startPolling(); }
+      });
+      for (const [key, t] of Object.entries(TABLES)) {
+        ch.on('postgres_changes', { event: '*', schema: 'public', table: t.table }, onChange(key));
+      }
+      ch.subscribe(s => {
+        if (ch !== channel || closed) return; // an old channel closing after a reconnect
+        if (s === 'SUBSCRIBED') {
+          retry = 0;
+          setStatus(st => (st === 'polling' ? st : 'live'));
+          refreshAll(); // catch up on anything missed while away
+          if (document.visibilityState === 'visible') ch.track({ at: new Date().toISOString() });
+        } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') {
+          setStatus('offline');
+          startPolling();
+          clearTimeout(retryTimer);
+          retryTimer = setTimeout(connect, Math.min(30000, 1000 * 2 ** retry++));
+        }
+      });
+    };
+    connect();
+
+    const ensureLive = () => {
+      if (closed) return;
+      if (!channel || !['joined', 'joining'].includes(channel.state)) connect();
+    };
+    const health = setInterval(() => { if (document.visibilityState === 'visible') ensureLive(); }, 15000);
 
     // "Last seen" for when someone isn't online right now.
     const heartbeat = () => {
@@ -100,22 +143,33 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
     heartbeat();
     const beat = setInterval(heartbeat, 120000);
 
-    // Phones suspend background tabs; resync whenever the app comes back,
-    // and show as offline while the app is in the background.
+    // Phones suspend background apps; when Weee comes back, reconnect if needed,
+    // catch up, and show as online again. In the background, show as offline.
     const onVisible = () => {
-      if (document.visibilityState === 'visible') { refreshAll(); heartbeat(); channel.track({ at: new Date().toISOString() }); }
-      else channel.untrack();
+      if (document.visibilityState === 'visible') {
+        ensureLive();
+        refreshAll();
+        heartbeat();
+        channel?.track({ at: new Date().toISOString() });
+      } else channel?.untrack();
     };
+    const onOnline = () => { ensureLive(); refreshAll(); };
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', refreshAll);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('focus', onVisible);
 
     const pending = timers.current;
     return () => {
+      closed = true;
+      clearTimeout(retryTimer);
+      stopPolling();
+      clearInterval(health);
       clearInterval(beat);
       channelRef.current = null;
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', refreshAll);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('focus', onVisible);
       Object.values(pending).forEach(clearTimeout);
     };
   }, [householdId, me, refresh, refreshAll]);

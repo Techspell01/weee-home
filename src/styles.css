@@ -68,6 +68,7 @@ header {
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.live { background: var(--good); }
 .dot.offline { background: var(--danger); }
+.dot.polling { background: var(--amber); }
 
 /* ---------- type ---------- */
 h2 { font-family: var(--display); font-weight: 700; font-size: 32px; letter-spacing: -0.03em; line-height: 1.05; margin: 22px 0 6px; }
