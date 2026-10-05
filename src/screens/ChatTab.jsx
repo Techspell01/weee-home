@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ConfirmButton, Empty, Icon } from '../components/ui.jsx';
+import { Avatar, ConfirmButton, Empty, Icon } from '../components/ui.jsx';
 import { toDateString, daysUntil } from '../lib/plans.js';
 import { visibleMessages } from '../lib/chat.js';
 import { haptic } from '../lib/haptics.js';
@@ -30,7 +30,7 @@ function Ticks({ state }) {
 const timeOf = iso => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 const clip = (s, n = 90) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-export default function ChatTab({ hh, actions, nameOf, notify, me, now }) {
+export default function ChatTab({ hh, actions, nameOf, notify, me, now, avatars = {} }) {
   const [text, setText] = useState('');
   const [selected, setSelected] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
@@ -232,6 +232,7 @@ export default function ChatTab({ hh, actions, nameOf, notify, me, now }) {
         {!mine && !joinsPrev && others.length > 1 && <div className="msg-who">{nameOf(m.user_id)}</div>}
         <div className="swipe" onPointerDown={e => onPointerDown(m, e)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
           <span className="reply-hint" aria-hidden="true"><Icon.reply /></span>
+          {!mine && <span className="msg-avatar">{!(joinsNext && !counts.length) && <Avatar url={avatars[m.user_id]} name={nameOf(m.user_id)} size={28} />}</span>}
           <div className={`bubble${selected === m.id ? ' picked' : ''}${m.pinned_at ? ' is-pinned' : ''}`} onClick={() => onBubbleTap(m)}>
             {m.reply_to && (
               <button type="button" className="quote" onClick={e => { e.stopPropagation(); if (quoted) jumpTo(quoted.id); }}>

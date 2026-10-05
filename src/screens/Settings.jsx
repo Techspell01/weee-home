@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
-import { ConfirmButton } from '../components/ui.jsx';
+import { useRef } from 'react';
+import { Avatar, ConfirmButton } from '../components/ui.jsx';
 import PushSettings from '../components/PushSettings.jsx';
 import { haptic, hapticsEnabled, hapticsSupported, setHapticsEnabled } from '../lib/haptics.js';
 import { playSound, setSoundsEnabled, soundsEnabled } from '../lib/sounds.js';
 
-export default function Settings({ household, me, myName, hh, actions, nameOf, notify, onLeft }) {
+export default function Settings({ household, me, myName, hh, actions, nameOf, notify, onLeft, onHouseholdChanged, avatars = {} }) {
   const [displayName, setDisplayName] = useState(myName);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -13,6 +14,19 @@ export default function Settings({ household, me, myName, hh, actions, nameOf, n
   const [houseName, setHouseName] = useState(household.name);
   const [vibrate, setVibrate] = useState(hapticsEnabled);
   const [sounds, setSounds] = useState(soundsEnabled);
+  const [since, setSince] = useState(household.together_since || '');
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  const myPhoto = hh.members.find(m => m.user_id === me)?.avatar_path;
+
+  async function pickPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    if (await actions.setAvatar(file)) notify('Photo updated');
+    setUploading(false);
+  }
 
   async function copyCode() {
     try { await navigator.clipboard.writeText(household.invite_code); notify('Invite code copied'); }
@@ -21,6 +35,29 @@ export default function Settings({ household, me, myName, hh, actions, nameOf, n
 
   return (
     <section>
+      <div className="panel profile-card">
+        <Avatar url={avatars[me]} name={myName} size={84} />
+        <div className="grow">
+          <div className="panel-title">{myName}</div>
+          <div className="stack-row gap-top-sm">
+            <button type="button" className="btn small" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? 'Uploading…' : myPhoto ? 'Change photo' : 'Add a photo'}</button>
+            {myPhoto && <button type="button" className="btn ghost small" onClick={async () => { if (await actions.removeAvatar()) notify('Photo removed'); }}>Remove</button>}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickPhoto} />
+        </div>
+      </div>
+
+      <div className="label">Together since</div>
+      <form className="form" onSubmit={async e => {
+        e.preventDefault();
+        if (await actions.setTogetherSince(since)) { notify(since ? 'Saved. The days-together counter is on Plans.' : 'Removed'); onHouseholdChanged?.(); }
+      }}>
+        <label className="field"><span>The day you got together (shown as days together on Plans)</span>
+          <input id="togetherSince" type="date" max={new Date().toISOString().slice(0, 10)} value={since} onChange={e => setSince(e.target.value)} />
+        </label>
+        <button className="btn ghost">Save date</button>
+      </form>
+
       <div className="label">Invite someone</div>
       <div className="panel">
         <p className="sub tight">On their phone they create an account, choose <b>Join with an invite code</b>, and type this code.</p>
@@ -34,7 +71,7 @@ export default function Settings({ household, me, myName, hh, actions, nameOf, n
       <div className="list">
         {hh.members.map(m => (
           <div key={m.user_id} className="row">
-            <div className="avatar" aria-hidden="true">{(m.display_name[0] || '?').toUpperCase()}</div>
+            <Avatar url={avatars[m.user_id]} name={m.display_name} size={38} />
             <div className="main"><div className="name">{m.display_name}{m.user_id === me && <span className="qty">you</span>}</div></div>
           </div>
         ))}

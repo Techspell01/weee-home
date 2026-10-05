@@ -9,6 +9,7 @@ import { haptic } from '../lib/haptics.js';
 import { playSound } from '../lib/sounds.js';
 import { dueState } from '../lib/tracker.js';
 import { visibleMessages } from '../lib/chat.js';
+import { useAvatarUrls } from '../lib/avatars.js';
 import PlansTab from './PlansTab.jsx';
 import TrackerTab from './TrackerTab.jsx';
 import DiscoverTab from './DiscoverTab.jsx';
@@ -40,7 +41,7 @@ function readStart() {
   return { tab: 'plans', sub: null };
 }
 
-export default function Home({ membership, me, onLeft }) {
+export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
   const household = membership.households;
   const start = useRef(readStart()).current;
   const [tab, setTab] = useState(start.tab);
@@ -100,7 +101,7 @@ export default function Home({ membership, me, onLeft }) {
       if (key === 'nudges') {
         if (!viaPush) playSound('heart');
         haptic('heartbeat');
-        setHeart({ from: nameFrom(members, row.from_user), key: row.id });
+        setHeart({ from: nameFrom(members, row.from_user), userId: row.from_user, key: row.id });
         return;
       }
       if (key === 'messages') {
@@ -123,6 +124,7 @@ export default function Home({ membership, me, onLeft }) {
   latest.current = { members: hh.members, trackers: hh.trackers, inChat, pushOn };
 
   const nameOf = id => nameFrom(hh.members, id);
+  const avatars = useAvatarUrls(hh.members);
   const actions = makeActions({ householdId: household.id, me, hh, notify });
   const mine = hh.members.find(m => m.user_id === me);
 
@@ -155,7 +157,7 @@ export default function Home({ membership, me, onLeft }) {
     if (!fromHeartLink.current || !hh.loaded) return;
     fromHeartLink.current = false;
     const last = hh.nudges.find(n => n.from_user !== me && Date.now() - Date.parse(n.created_at) < 3600000);
-    if (last) setHeart({ from: nameFrom(hh.members, last.from_user), key: last.id });
+    if (last) setHeart({ from: nameFrom(hh.members, last.from_user), userId: last.from_user, key: last.id });
     try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
   }, [hh.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -186,7 +188,7 @@ export default function Home({ membership, me, onLeft }) {
   const partner = hh.members.find(m => m.user_id !== me);
   const others = hh.members.filter(m => m.user_id !== me).length;
   const myName = mine?.display_name || membership.display_name;
-  const shared = { hh, actions, nameOf, notify, now, me };
+  const shared = { hh, actions, nameOf, notify, now, me, avatars };
   const page = tab === 'discover' && sub ? sub : tab;
   const showBack = tab === 'settings' || (tab === 'discover' && sub);
   const showAdd = !['settings', 'discover', 'chat'].includes(page);
@@ -213,19 +215,19 @@ export default function Home({ membership, me, onLeft }) {
         </header>
 
         <div key={page} className={`page page-${motion}`}>
-          {page === 'plans' && <PlansTab {...shared} />}
+          {page === 'plans' && <PlansTab {...shared} household={household} />}
           {page === 'tracker' && <TrackerTab {...shared} />}
           {page === 'discover' && <DiscoverTab {...shared} open={openSub} unread={unread} />}
           {page === 'list' && <ListTab {...shared} />}
           {page === 'money' && <MoneyTab {...shared} />}
           {page === 'chat' && <ChatTab {...shared} />}
-          {page === 'settings' && <Settings {...shared} household={household} myName={myName} onLeft={onLeft} />}
+          {page === 'settings' && <Settings {...shared} household={household} myName={myName} onLeft={onLeft} onHouseholdChanged={onHouseholdChanged} />}
         </div>
       </div>
 
       <TabBar tabs={TABS} current={tab} onSelect={go} badges={badges} />
       <Toasts toasts={toasts} />
-      <HeartOverlay heart={heart} onClose={() => setHeart(null)}
+      <HeartOverlay heart={heart && { ...heart, url: avatars[heart.userId] }} onClose={() => setHeart(null)}
         onSendBack={async () => { setHeart(null); if (await actions.sendNudge()) notify(`Heart sent back 💗`); }} />
       <AlertBanner alert={alert} onClose={() => setAlert(null)}
         onOpen={() => {

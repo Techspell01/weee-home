@@ -8,7 +8,8 @@
 
 | | |
 |---|---|
-| **Plans** | A scrollable row of days. Each day shows plans you have **together** (dates, outings, trips, family) and **each person's own schedule** (work, appointments, errands with start and end times), so you can see each other's day. Undated plans are saved as **Ideas**. Places open in Google Maps. |
+| **Plans** | Opens on a card for the two of you: both photos, **days together** (with a glow on anniversaries, every 100 days and every 1,000), what's on today and what's next. Below it, the selected day as one timeline of plans you have **together** (dates, outings, trips, family) and **each person's own schedule** (work, appointments, errands with start and end times). Adding or editing a plan opens a bottom sheet; a calendar button shows the next three months. Undated plans are saved as **Ideas**. Places open in Google Maps. |
+| **Profile photos** | Add a photo in Settings. It shows on the Plans card, beside your messages in Chat and on the "thinking of you" heart. Photos are cropped to a square, stored in a private bucket and only visible to people in your household. |
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
 | **Countdowns** | Big-number tiles on Plans ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
 | **Thinking of you** | One heart button (Discover and the chat box): your partner gets a notification with a heartbeat vibration, or a full-screen pulsing heart if Weee is open, with "Send one back". |
@@ -17,7 +18,7 @@
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
 | **Money** | Monthly spending by category (groceries, outings, rent, bills, travel…), equal splits, "who owes whom", and settle-up. |
 | **Push notifications** | "Priya added Milk", "Priya planned: Dinner at Toit", chat messages and follow-up reminders, even with the app closed (iPhone Home Screen app on iOS 16.4+, and Android). |
-| **Feels native** | A matte bento layout and an iOS liquid-glass tab bar (Plans · Map · Discover) (Plans · Tracker · Discover) whose lens stretches between tabs and can be dragged; Discover holds Shopping, Money and Chat. Sliding page transitions, haptic feedback, installable as an app. |
+| **Feels native** | An animated start screen (the glass lens forms, its rainbow rim draws in, then the W), a matte bento layout and an iOS liquid-glass tab bar (Plans · Tracker · Discover) whose lens stretches between tabs and can be dragged; Discover holds Shopping, Money and Chat. Sliding page transitions, haptic feedback, installable as an app. |
 | **Private by design** | Every row belongs to a household, and Postgres row-level security means only its members can read or change it. |
 
 ## Tech stack
@@ -78,8 +79,8 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 
 | Table | What it holds |
 |---|---|
-| `households` | name and a unique 6-character invite code |
-| `household_members` | who belongs to which household, with display names |
+| `households` | name, a unique 6-character invite code and the date you got together |
+| `household_members` | who belongs to which household, with display names and profile photo path |
 | `items` | shopping list: need/bought, urgent, who added and who bought |
 | `pantry` | one row per product: last bought, how long it lasts, recent purchase times |
 | `plans` | title, type, date, start/end time, place, notes; `owner` set means that person's own schedule |
@@ -90,6 +91,8 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `message_reactions` | one emoji reaction per person per message |
 | `trackers` | follow-ups: kind, title, details, link, status, next reminder time, repeat, follow-up log; private unless shared |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |
+
+Profile photos live in the private `avatars` storage bucket, one folder per person; you can only upload into your own folder and only household members can get a link to view them.
 
 Households are created and joined through the `create_household` and `join_household` functions. `record_purchase` updates the pantry and learns how long each product lasts. `delete_my_account` removes a user and any household they were the last member of.
 

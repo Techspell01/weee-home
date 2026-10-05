@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 // Everything a household shares. Each table is fetched once, then refetched
 // whenever Supabase Realtime reports a change, so every phone stays in sync.
 const TABLES = {
-  members: { table: 'household_members', select: 'user_id, display_name, joined_at, last_seen, chat_read_at, chat_cleared_at', order: 'joined_at' },
+  members: { table: 'household_members', select: 'user_id, display_name, joined_at, last_seen, chat_read_at, chat_cleared_at, avatar_path', order: 'joined_at' },
   items: { table: 'items', select: '*', order: 'added_at' },
   pantry: { table: 'pantry', select: '*', order: 'name' },
   expenses: { table: 'expenses', select: '*', order: 'created_at' },

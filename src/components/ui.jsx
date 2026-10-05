@@ -70,8 +70,29 @@ export function Toasts({ toasts }) {
   );
 }
 
-export function Splash({ text = 'Loading…' }) {
-  return <div className="splash"><div className="brand">Weee</div><p>{text}</p></div>;
+// Start screen: the app icon's glass lens forms, its rainbow rim lights up,
+// and the W draws itself in. (index.html shows the same mark before the app loads.)
+export function Splash({ text }) {
+  return (
+    <div className="splash" style={{ '--elapsed': `${-Math.round(Math.min(performance.now(), 3000))}ms` }}>
+      <svg className="splash-mark" viewBox="0 0 200 200" width="132" height="132" aria-hidden="true">
+        <defs>
+          <linearGradient id="splashRim" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ff6060" /><stop offset="0.25" stopColor="#ffd65a" />
+            <stop offset="0.5" stopColor="#60ffaa" /><stop offset="0.75" stopColor="#5ab4ff" /><stop offset="1" stopColor="#c478ff" />
+          </linearGradient>
+          <radialGradient id="splashLens" cx="0.5" cy="0.15" r="0.9">
+            <stop offset="0" stopColor="#fff" stopOpacity="0.22" /><stop offset="0.6" stopColor="#fff" stopOpacity="0.04" /><stop offset="1" stopColor="#fff" stopOpacity="0.02" />
+          </radialGradient>
+        </defs>
+        <circle className="splash-lens" cx="100" cy="100" r="78" fill="url(#splashLens)" />
+        <circle className="splash-rim" cx="100" cy="100" r="77" fill="none" stroke="url(#splashRim)" strokeWidth="3" pathLength="1" />
+        <path className="splash-w" d="M60 76 L78 128 L100 92 L122 128 L140 76" fill="none" stroke="#F4F4F5" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" pathLength="1" />
+      </svg>
+      <div className="splash-name">Weee</div>
+      {text && <p className="splash-text">{text}</p>}
+    </div>
+  );
 }
 
 export function Empty({ title, children }) {
@@ -122,6 +143,7 @@ export function HeartOverlay({ heart, onSendBack, onClose }) {
   return (
     <div className="heart-overlay" key={heart.key} role="dialog" aria-label={`${heart.from} is thinking of you`} onClick={onClose}>
       <div className="heart-card" onClick={e => e.stopPropagation()}>
+        {heart.url && <img className="heart-photo" src={heart.url} alt="" />}
         <span className="big-heart" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="120" height="120" fill="currentColor"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3 4.2 6.4-1.8 5-9.3 9.6-9.3 9.6z" /></svg>
         </span>
@@ -130,6 +152,49 @@ export function HeartOverlay({ heart, onSendBack, onClose }) {
           <button type="button" className="btn" data-haptic="heartbeat" onClick={onSendBack}>Send one back 💗</button>
           <button type="button" className="btn ghost" onClick={onClose}>Close</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// A person's photo, or their initial on a soft circle when there's no photo.
+export function Avatar({ url, name, size = 40, className = '' }) {
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  return (
+    <span className={`avatar-img ${className}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }} aria-label={name}>
+      {url ? <img src={url} alt="" draggable="false" /> : initial}
+    </span>
+  );
+}
+
+// Two (or more) overlapping photos, like a couple's portrait.
+export function AvatarStack({ people, size = 56 }) {
+  return (
+    <span className="avatar-stack" style={{ '--s': `${size}px` }}>
+      {people.map(p => <Avatar key={p.id} url={p.url} name={p.name} size={size} />)}
+    </span>
+  );
+}
+
+// Bottom sheet that slides up over the page (forms that used to sit inline).
+export function Sheet({ open, title, onClose, children }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    document.body.classList.add('sheet-open');
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.classList.remove('sheet-open'); window.removeEventListener('keydown', onKey); };
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+        <div className="sheet-grip" aria-hidden="true" />
+        <div className="sheet-head">
+          <div className="panel-title">{title}</div>
+          <button type="button" className="icon" onClick={onClose} aria-label="Close"><Icon.x /></button>
+        </div>
+        <div className="sheet-body">{children}</div>
       </div>
     </div>
   );

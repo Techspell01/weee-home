@@ -23,7 +23,7 @@ function SignedIn({ userId }) {
     setError(null);
     const { data, error } = await supabase
       .from('household_members')
-      .select('household_id, display_name, households(id, name, invite_code)')
+      .select('household_id, display_name, households(id, name, invite_code, together_since)')
       .eq('user_id', userId)
       .order('joined_at')
       .limit(1);
@@ -46,12 +46,24 @@ function SignedIn({ userId }) {
   }
   if (membership === undefined) return <Splash />;
   if (!membership) return <Onboarding onDone={load} />;
-  return <Home key={membership.household_id} membership={membership} me={userId} onLeft={load} />;
+  return <Home key={membership.household_id} membership={membership} me={userId} onLeft={load} onHouseholdChanged={load} />;
+}
+
+// Let the start animation finish (about a second from launch) before the app appears.
+function useIntro(ms = 1150) {
+  const [done, setDone] = useState(() => performance.now() >= ms);
+  useEffect(() => {
+    if (done) return;
+    const t = setTimeout(() => setDone(true), ms - performance.now());
+    return () => clearTimeout(t);
+  }, [done, ms]);
+  return done;
 }
 
 export default function App() {
   const session = useSession();
-  if (session === undefined) return <Splash />;
+  const introDone = useIntro();
+  if (session === undefined || !introDone) return <Splash />;
   if (!session) return <AuthScreen />;
   return <SignedIn key={session.user.id} userId={session.user.id} />;
 }

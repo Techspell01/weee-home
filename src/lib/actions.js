@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { guessCategory, guessDays, itemKey, parseList } from './groceries.js';
 import { haptic } from './haptics.js';
 import { nextRepeat } from './tracker.js';
+import { squareJpeg } from './avatars.js';
 
 export function friendlyError(error) {
   const msg = error?.message || '';
@@ -206,6 +207,35 @@ export function makeActions({ householdId, me, hh, notify }) {
         .eq('household_id', householdId).eq('user_id', me).then(() => hh.refresh('members'));
     },
 
+    // Profile photo: upload a new one, then point my membership at it.
+    async setAvatar(file) {
+      try {
+        const blob = await squareJpeg(file);
+        const path = `${me}/${Date.now()}.jpg`;
+        const { error } = await supabase.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+        if (error) { notify(friendlyError(error)); return false; }
+        const old = hh.members.find(m => m.user_id === me)?.avatar_path;
+        const ok = await run(supabase.from('household_members').update({ avatar_path: path })
+          .eq('household_id', householdId).eq('user_id', me), 'members');
+        if (ok && old) supabase.storage.from('avatars').remove([old]);
+        if (ok) haptic('success');
+        return ok;
+      } catch (e) {
+        notify(e.message || 'Could not use that photo.');
+        return false;
+      }
+    },
+    async removeAvatar() {
+      const old = hh.members.find(m => m.user_id === me)?.avatar_path;
+      const ok = await run(supabase.from('household_members').update({ avatar_path: null })
+        .eq('household_id', householdId).eq('user_id', me), 'members');
+      if (ok && old) await supabase.storage.from('avatars').remove([old]);
+      return ok;
+    },
+    setTogetherSince(date) {
+      return run(supabase.from('households').update({ together_since: date || null }).eq('id', householdId));
+    },
+
     renameMe(displayName) {
       return run(supabase.from('household_members').update({ display_name: displayName }).eq('household_id', householdId).eq('user_id', me), 'members');
     },
@@ -213,6 +243,8 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('households').update({ name }).eq('id', householdId));
     },
     async deleteAccount() {
+      const photo = hh.members.find(m => m.user_id === me)?.avatar_path;
+      if (photo) await supabase.storage.from('avatars').remove([photo]);
       const { error } = await supabase.rpc('delete_my_account');
       if (error) { notify(friendlyError(error)); return false; }
       await supabase.auth.signOut({ scope: 'local' });
