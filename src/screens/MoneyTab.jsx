@@ -48,13 +48,13 @@ export default function MoneyTab({ hh, actions, nameOf, me, notify, now }) {
 
       <div className="spend">
         <div className="spend-head">
-          <button className="icon" onClick={() => setMonth(m => shiftMonth(m, -1))} aria-label="Previous month"><Icon.back /></button>
+          <button className="icon" data-haptic="select" onClick={() => setMonth(m => shiftMonth(m, -1))} aria-label="Previous month"><Icon.back /></button>
           <div className="grow center">
             <div className="meta">{monthLabel(month)}</div>
             <div className="amt">{rupees(spent.total)}</div>
             <div className="meta">{isCurrentMonth ? 'spent so far this month' : 'spent'}</div>
           </div>
-          <button className="icon flip" onClick={() => setMonth(m => shiftMonth(m, 1))} disabled={isCurrentMonth} aria-label="Next month"><Icon.back /></button>
+          <button className="icon flip" data-haptic="select" onClick={() => setMonth(m => shiftMonth(m, 1))} disabled={isCurrentMonth} aria-label="Next month"><Icon.back /></button>
         </div>
         {spent.categories.length === 0 ? (
           <p className="meta center">No spending recorded in {monthLabel(month)}. Add an expense below and it appears here.</p>

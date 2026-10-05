@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { KINDS, MY_KINDS, TOGETHER_KINDS, dayStrip, dayTitle, mapLink, sortPlans, timeRange, toDateString, whenLabel } from '../lib/plans.js';
 import { ConfirmButton, Empty, Icon } from '../components/ui.jsx';
+import { haptic } from '../lib/haptics.js';
 
 const IDEAS = 'ideas';
 
@@ -16,6 +17,7 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
   const [showMore, setShowMore] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const formRef = useRef(null);
+  const stripTick = useRef(0);
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
 
   // Moving to another day starts a fresh form for that day (unless editing).
@@ -90,9 +92,13 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
       <h2>Plans</h2>
       <p className="sub">Your plans together, and each person's schedule for the day, so you both know who's busy when.</p>
 
-      <div className="strip" role="tablist" aria-label="Choose a day">
+      <div className="strip" role="tablist" aria-label="Choose a day" onScroll={e => {
+        // a soft tick for each day that scrolls past, like an iOS picker
+        const i = Math.round(e.currentTarget.scrollLeft / 66);
+        if (i !== stripTick.current) { stripTick.current = i; haptic('tick'); }
+      }}>
         {strip.map(d => (
-          <button key={d.value} role="tab" aria-selected={day === d.value} className="strip-day" onClick={() => setDay(d.value)}>
+          <button key={d.value} role="tab" aria-selected={day === d.value} className="strip-day" data-haptic="select" onClick={() => setDay(d.value)}>
             <span className="wd">{d.weekday}</span>
             <span className="dn">{d.day}</span>
             <span className={`busy${busyDays.has(d.value) ? ' on' : ''}`} />
@@ -116,7 +122,7 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now }) {
         </>
       ) : (
         <>
-          <div className="day-title">{dayTitle(day, now)}</div>
+          <div className="day-title">{(([first, ...rest]) => <>{first}{rest.length > 0 && <span className="tone">, {rest.join(', ')}</span>}</>)(dayTitle(day, now).split(', '))}</div>
 
           <div className="label">Together <span className="count">{together.length}</span></div>
           {together.length ? <div className="list">{together.map(p => row(p))}</div>

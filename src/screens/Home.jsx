@@ -5,6 +5,7 @@ import { isRunningLow } from '../lib/groceries.js';
 import { groupOf, whenLabel } from '../lib/plans.js';
 import { Icon, Toasts, useToasts } from '../components/ui.jsx';
 import { resyncPush } from '../lib/push.js';
+import { haptic } from '../lib/haptics.js';
 import PlansTab from './PlansTab.jsx';
 import ListTab from './ListTab.jsx';
 import PantryTab from './PantryTab.jsx';
@@ -55,6 +56,7 @@ export default function Home({ membership, me, onLeft }) {
         ? (row.owner ? `${who}'s schedule: ${row.title} · ${whenLabel(row)}` : `${who} planned ${row.title} · ${whenLabel(row)}`)
         : `${nameFrom(membersRef.current, row.added_by)} added ${row.name}`;
       notify(text);
+      if (document.visibilityState === 'visible') haptic('notify');
     },
   });
   membersRef.current = hh.members;

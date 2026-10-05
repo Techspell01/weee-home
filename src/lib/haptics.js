@@ -4,7 +4,15 @@
 // tick, so we use that there. In the Android app (Capacitor) this can later
 // switch to @capacitor/haptics for richer feedback.
 
-const PATTERNS = { light: 8, select: 12, success: [12, 50, 20], warn: [25, 40, 25] };
+const PATTERNS = {
+  tick: 4,                       // scrolling past a day, steppers
+  light: 8,                      // any tap
+  select: 12,                    // choosing a tab, chip or option
+  success: [12, 50, 20],         // saved, ticked off, done
+  warn: [25, 40, 25],            // confirming a delete
+  error: [30, 60, 30, 60, 30],   // something failed
+  notify: [10, 80, 10, 80, 18],  // your partner just added something
+};
 const STORAGE_KEY = 'homelist-haptics';
 
 const isIOS = typeof navigator !== 'undefined' &&

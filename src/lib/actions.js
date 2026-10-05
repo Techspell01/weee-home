@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { guessCategory, guessDays, itemKey, parseList } from './groceries.js';
+import { haptic } from './haptics.js';
 
 export function friendlyError(error) {
   const msg = error?.message || '';
@@ -13,7 +14,7 @@ export function friendlyError(error) {
 export function makeActions({ householdId, me, hh, notify }) {
   const run = async (query, key) => {
     const { error } = await query;
-    if (error) notify(friendlyError(error));
+    if (error) { notify(friendlyError(error)); haptic('error'); }
     if (key) hh.refresh(key);
     return !error;
   };
@@ -40,7 +41,7 @@ export function makeActions({ householdId, me, hh, notify }) {
         }
         added.push({ household_id: householdId, name: name.slice(0, 80), qty: qty.slice(0, 30), category: guessCategory(name) });
       }
-      if (added.length) await run(supabase.from('items').insert(added));
+      if (added.length && await run(supabase.from('items').insert(added))) haptic('success');
       hh.refresh('items');
     },
 
@@ -79,8 +80,10 @@ export function makeActions({ householdId, me, hh, notify }) {
     },
 
 
-    addExpense({ description, amount, category = 'other', paidBy, splitWith }) {
-      return run(supabase.from('expenses').insert({ household_id: householdId, description, amount, category, paid_by: paidBy, split_with: splitWith }), 'expenses');
+    async addExpense({ description, amount, category = 'other', paidBy, splitWith }) {
+      const ok = await run(supabase.from('expenses').insert({ household_id: householdId, description, amount, category, paid_by: paidBy, split_with: splitWith }), 'expenses');
+      if (ok) haptic('success');
+      return ok;
     },
     settle({ from, to, amount }) {
       return run(supabase.from('expenses').insert({ household_id: householdId, description: 'Settled up', amount, paid_by: from, split_with: [to], is_settlement: true }), 'expenses');
@@ -90,8 +93,10 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('expenses').delete().eq('id', e.id), 'expenses');
     },
 
-    addPlan(row) {
-      return run(supabase.from('plans').insert({ household_id: householdId, ...row }), 'plans');
+    async addPlan(row) {
+      const ok = await run(supabase.from('plans').insert({ household_id: householdId, ...row }), 'plans');
+      if (ok) haptic('success');
+      return ok;
     },
     updatePlan(id, row) {
       hh.patch('plans', id, row);

@@ -51,9 +51,9 @@ export default function PantryTab({ hh, actions, notify, now }) {
                     : <button className="btn small" onClick={() => actions.addItems(p.name)}>Add to list</button>}
                   <button className="btn ghost small" onClick={() => { actions.recordPurchase(p.name); notify(`${p.name} marked as restocked`); }}>Restocked</button>
                   <span className="stepper">lasts
-                    <button onClick={() => actions.setLastsDays(p, p.lasts_days - 1)} aria-label="Fewer days">−</button>
+                    <button data-haptic="tick" onClick={() => actions.setLastsDays(p, p.lasts_days - 1)} aria-label="Fewer days">−</button>
                     <b>{p.lasts_days}d</b>
-                    <button onClick={() => actions.setLastsDays(p, p.lasts_days + 1)} aria-label="More days">+</button>
+                    <button data-haptic="tick" onClick={() => actions.setLastsDays(p, p.lasts_days + 1)} aria-label="More days">+</button>
                   </span>
                   <ConfirmButton label={`Stop tracking ${p.name}`} confirmLabel="Stop?" onConfirm={() => actions.untrack(p)}><Icon.x /></ConfirmButton>
                 </div>
