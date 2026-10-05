@@ -141,7 +141,7 @@ export default function Home({ membership, me, onLeft }) {
 
   // Share this phone's position while Weee is open (only if this person turned it on).
   const lastGeoError = useRef(0);
-  useLocationSharing({
+  const myFix = useLocationSharing({
     householdId: household.id, me, enabled: sharing,
     onError: err => {
       if (Date.now() - lastGeoError.current < 60000) return; // don't repeat the same warning
@@ -197,7 +197,7 @@ export default function Home({ membership, me, onLeft }) {
 
         <div key={page} className={`page page-${motion}`}>
           {page === 'plans' && <PlansTab {...shared} />}
-          {page === 'map' && <Suspense fallback={<div className="map-card"><div className="map" /></div>}><MapTab {...shared} /></Suspense>}
+          {page === 'map' && <Suspense fallback={<div className="map-card"><div className="map" /></div>}><MapTab {...shared} myFix={myFix} /></Suspense>}
           {page === 'discover' && <DiscoverTab {...shared} open={openSub} unread={unread} />}
           {page === 'list' && <ListTab {...shared} />}
           {page === 'money' && <MoneyTab {...shared} />}

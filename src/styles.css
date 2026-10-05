@@ -745,3 +745,16 @@ body.kb-open .composer { bottom: calc(var(--kb, 0px) + 10px); }
 .alert-toggle small { grid-column: 1 / -1; font-size: 12.5px; color: var(--faint); }
 .alert-toggle.on { background: rgba(125, 219, 155, 0.08); border-color: rgba(125, 219, 155, 0.25); color: var(--good); }
 .alert-toggle.on small { color: var(--muted); }
+
+/* map: old positions fade, with how long ago; follow button lit while following */
+.pin.stale span { background: #3A3A40; color: #C9C9CF; border-color: #0A0A0B; box-shadow: none; }
+.pin.stale.online::before { display: none; }
+.pin-ago {
+  position: absolute; z-index: 2; top: 100%; left: 50%; transform: translate(-50%, 3px); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-style: normal; font-size: 11.5px; font-weight: 700; color: #C9C9CF;
+  padding: 2px 8px; border-radius: 999px; background: rgba(24, 24, 27, 0.9); border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.place-label { display: inline-flex; align-items: center; gap: 4px; }
+.place-label svg { opacity: .7; }
+.icon.big.following { color: var(--accent); border-color: rgba(58, 168, 255, 0.45); }

@@ -4,7 +4,7 @@
 // stop when Weee is closed or in the background. (A native Android app can keep
 // sharing in the background; see README "Android app".) Battery level comes from
 // the Battery Status API, which Chrome on Android supports and iPhone Safari does not.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 
 export const geoSupported = () => typeof navigator !== 'undefined' && 'geolocation' in navigator;
@@ -46,10 +46,16 @@ export const ACTIVITY_LABEL = { still: 'Not moving', walking: 'Walking', cycling
 export const kmh = speed => Math.round((speed || 0) * 3.6);
 // Movement info is only shown while the position is recent.
 export const isFresh = (loc, now = Date.now()) => loc && now - Date.parse(loc.updated_at) < 3 * 60000;
+// Older than this, a position is shown as "last seen" rather than live.
+export const STALE_MS = 5 * 60000;
+export const isStale = (loc, now = Date.now()) => !loc || now - Date.parse(loc.updated_at) > STALE_MS;
 
+// Returns this phone's latest position (for drawing your own pin instantly).
 export function useLocationSharing({ householdId, me, enabled, onError }) {
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const [fix, setFix] = useState(null);
+  const lastFix = useRef(null);
 
   useEffect(() => {
     if (!enabled || !geoSupported()) return;
@@ -70,6 +76,12 @@ export function useLocationSharing({ householdId, me, enabled, onError }) {
       }
       if (!prevFix || t - prevFix.t >= 1000) prevFix = { ...here, t };
       if (v !== null) smooth = smooth === null ? v : smooth * 0.55 + v * 0.45;
+      // share with the map at most every 2 s (or after moving 5 m)
+      const lf = lastFix.current;
+      if (!lf || Date.now() - lf.at > 2000 || distanceM(lf, here) > 5) {
+        lastFix.current = { ...here, accuracy: pos.coords.accuracy, at: Date.now() };
+        if (!cancelled) setFix(lastFix.current);
+      }
       return here;
     }
 
@@ -143,4 +155,6 @@ export function useLocationSharing({ householdId, me, enabled, onError }) {
       }
     };
   }, [enabled, householdId, me]);
+
+  return enabled ? fix : null;
 }

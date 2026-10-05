@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { BigValue, ConfirmButton, Empty, Icon } from '../components/ui.jsx';
-import { ACTIVITY_LABEL, distanceM, formatDistance, geoSupported, isFresh, kmh, requestPosition } from '../lib/location.js';
+import { ACTIVITY_LABEL, distanceM, formatDistance, geoSupported, isFresh, isStale, kmh, requestPosition } from '../lib/location.js';
 import { ago, formatStay } from '../lib/time.js';
 import { alertsOn } from '../lib/places.js';
 import { haptic } from '../lib/haptics.js';
@@ -22,6 +22,7 @@ const ACT_SVG = {
   cycling: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2 7M14 6h2"/></svg>',
   driving: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM5 11h14"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="1"/></svg>',
 };
+const PIN_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 22s-7-6-7-12a7 7 0 0 1 14 0c0 6-7 12-7 12zm0-9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>';
 const CLOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
 const clock = iso => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
@@ -31,7 +32,7 @@ function dayName(iso, now) {
   return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
+export default function MapTab({ hh, actions, nameOf, notify, me, now, myFix }) {
   const mapEl = useRef(null);
   const map = useRef(null);
   const layers = useRef({ people: new Map(), places: new Map(), draft: null });
@@ -45,10 +46,21 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState(null);
+  // Follow mode: keep everyone in view as they move, until you drag or zoom the map.
+  const follow = useRef(true);
+  const [following, setFollowing] = useState(true);
 
   const mine = hh.members.find(m => m.user_id === me);
   const sharing = Boolean(mine?.share_location);
-  const locOf = id => hh.locations.find(l => l.user_id === id);
+  // My own pin uses this phone's live GPS (instant); others come from the server.
+  const locOf = id => {
+    const l = hh.locations.find(x => x.user_id === id);
+    if (id === me && myFix && sharing) {
+      return { ...(l || { user_id: me }), lat: myFix.lat, lng: myFix.lng, accuracy: myFix.accuracy, updated_at: new Date(myFix.at).toISOString() };
+    }
+    return l;
+  };
+  const staleOf = id => id !== me && isStale(locOf(id), now);
   const myLoc = locOf(me);
   const isOnline = id => hh.online.includes(id);
   const stayOf = id => {
@@ -116,7 +128,7 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   }, [adding, ready]);
 
   // ---------- people markers ----------
-  const peopleKey = shown.map(m => { const l = locOf(m.user_id); const st = stayFor(m.user_id); return `${m.user_id}:${l.lat}:${l.lng}:${isOnline(m.user_id)}:${m.display_name}:${l.activity}:${kmh(l.speed)}:${isFresh(l, now)}:${st ? Math.floor(st.ms / 60000) : ''}`; }).join('|');
+  const peopleKey = shown.map(m => { const l = locOf(m.user_id); const st = stayFor(m.user_id); return `${m.user_id}:${l.lat}:${l.lng}:${isOnline(m.user_id)}:${m.display_name}:${l.activity}:${kmh(l.speed)}:${isFresh(l, now)}:${st ? Math.floor(st.ms / 60000) : ''}:${staleOf(m.user_id) ? ago(l.updated_at, now) : ''}`; }).join('|');
   useEffect(() => {
     const m = map.current;
     if (!m) return;
@@ -127,11 +139,13 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
       const icon = L.divIcon({
         className: 'pin-wrap',
         html: (() => {
-          const mv = movingOf(p.user_id);
+          const stale = staleOf(p.user_id);
+          const mv = stale ? null : movingOf(p.user_id);
           const st = stayFor(p.user_id);
-          return `<div class="pin${isOnline(p.user_id) ? ' online' : ''}${p.user_id === me ? ' me' : ''}${mv ? ' moving' : ''}"><span>${esc(initialOf(p.display_name))}</span>`
+          return `<div class="pin${isOnline(p.user_id) ? ' online' : ''}${p.user_id === me ? ' me' : ''}${mv ? ' moving' : ''}${stale ? ' stale' : ''}"><span>${esc(initialOf(p.display_name))}</span>`
             + (mv ? `<b class="pin-act">${ACT_SVG[mv.activity] || ''}</b><em class="pin-speed">${kmh(mv.speed)} km/h</em>` : '')
-            + (!mv && st && st.ms >= STAY_MIN ? `<em class="pin-stay">${CLOCK_SVG}${esc(formatStay(st.ms))}</em>` : '')
+            + (stale ? `<em class="pin-ago">${CLOCK_SVG}${esc(ago(l.updated_at, now))}</em>` : '')
+            + (!mv && !stale && st && st.ms >= STAY_MIN ? `<em class="pin-stay">${CLOCK_SVG}${esc(formatStay(st.ms))}</em>` : '')
             + '</div>';
         })(),
         iconSize: [46, 46],
@@ -150,18 +164,22 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     const m = map.current;
     if (!m) return;
     const seen = new Set();
+    const labelled = [];
     for (const p of hh.places) {
       seen.add(p.id);
       const old = layers.current.places.get(p.id);
-      if (old) { old.circle.remove(); old.label.remove(); }
-      const circle = L.circle([p.lat, p.lng], { radius: p.radius_m, color: '#ffffff', weight: 1, opacity: 0.55, fillColor: '#ffffff', fillOpacity: 0.06, interactive: false }).addTo(m);
-      const label = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: 'place-label-wrap', html: `<div class="place-label"><i>${esc(initialOf(p.created_by === me ? mine?.display_name : nameOf(p.created_by)))}</i>${esc(p.name)}</div>`, iconSize: null }),
+      if (old) { old.circle.remove(); old.label?.remove(); }
+      const circle = L.circle([p.lat, p.lng], { radius: p.radius_m, color: '#ffffff', weight: 1, opacity: 0.45, dashArray: '3 5', fillColor: '#ffffff', fillOpacity: 0.04, interactive: false }).addTo(m);
+      // One label per spot: two places saved at the same address share a label.
+      const crowded = labelled.some(q => distanceM(q, p) < 80);
+      const label = crowded ? null : L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: 'place-label-wrap', html: `<div class="place-label">${PIN_SVG}${esc(p.name)}</div>`, iconSize: null }),
         interactive: false, keyboard: false,
       }).addTo(m);
+      if (label) labelled.push(p);
       layers.current.places.set(p.id, { circle, label });
     }
-    for (const [id, l] of layers.current.places) if (!seen.has(id)) { l.circle.remove(); l.label.remove(); layers.current.places.delete(id); }
+    for (const [id, l] of layers.current.places) if (!seen.has(id)) { l.circle.remove(); l.label?.remove(); layers.current.places.delete(id); }
   }, [placesKey, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- draft pin while adding ----------
@@ -174,16 +192,45 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     }
   }, [adding, draft.lat, draft.lng, draft.radius, ready]);
 
-  // fit everyone and every place in view once data arrives
-  useEffect(() => {
+  // ---------- follow mode ----------
+  // People to keep in view: me, plus anyone updated in the last 30 minutes
+  // (a position from hours ago shouldn't drag the map across the city).
+  const followPts = shown
+    .filter(p => p.user_id === me || Date.now() - Date.parse(locOf(p.user_id).updated_at) < 30 * 60000)
+    .map(p => { const l = locOf(p.user_id); return [l.lat, l.lng]; });
+  const followKey = followPts.map(pt => pt.map(v => v.toFixed(5)).join(',')).join('|');
+
+  function frame(pts, animate) {
     const m = map.current;
-    if (!m || fitted.current || !hh.loaded) return;
-    const pts = [...shown.map(p => { const l = locOf(p.user_id); return [l.lat, l.lng]; }), ...hh.places.map(p => [p.lat, p.lng])];
-    if (!pts.length) return;
-    fitted.current = true;
-    if (pts.length === 1) m.setView(pts[0], 15);
-    else m.fitBounds(pts, { padding: [48, 48], maxZoom: 15 });
-  }, [hh.loaded, peopleKey, placesKey, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!m || !pts.length) return;
+    if (pts.length === 1) animate ? m.flyTo(pts[0], Math.max(m.getZoom(), 15), { duration: 0.7 }) : m.setView(pts[0], 16);
+    else animate ? m.flyToBounds(pts, { padding: [60, 60], maxZoom: 16, duration: 0.7 }) : m.fitBounds(pts, { padding: [60, 60], maxZoom: 16 });
+  }
+
+  useEffect(() => {
+    if (!map.current || !hh.loaded || !follow.current) return;
+    if (followPts.length) { frame(followPts, fitted.current); fitted.current = true; }
+    else if (!fitted.current && hh.places.length) { frame(hh.places.map(p => [p.lat, p.lng]), false); fitted.current = true; }
+  }, [followKey, hh.loaded, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Dragging or zooming the map yourself stops following.
+  useEffect(() => {
+    const el = mapEl.current;
+    const stop = () => { if (follow.current) { follow.current = false; setFollowing(false); } };
+    el.addEventListener('touchstart', stop, { passive: true });
+    el.addEventListener('wheel', stop, { passive: true });
+    el.addEventListener('mousedown', stop);
+    return () => {
+      el.removeEventListener('touchstart', stop);
+      el.removeEventListener('wheel', stop);
+      el.removeEventListener('mousedown', stop);
+    };
+  }, []);
+  function startFollowing() {
+    follow.current = true;
+    setFollowing(true);
+    frame(followPts.length ? followPts : shown.map(p => { const l = locOf(p.user_id); return [l.lat, l.lng]; }), true);
+  }
 
   // header "+" opens the add-place panel
   useEffect(() => {
@@ -195,6 +242,8 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   const flyTo = (lat, lng, zoom = 16) => map.current?.flyTo([lat, lng], zoom, { duration: 0.8 });
 
   function fitAll() {
+    follow.current = false;
+    setFollowing(false);
     const pts = [...shown.map(p => { const l = locOf(p.user_id); return [l.lat, l.lng]; }), ...hh.places.map(p => [p.lat, p.lng])];
     if (pts.length === 1) flyTo(pts[0][0], pts[0][1], 15);
     else if (pts.length) map.current?.flyToBounds(pts, { padding: [48, 48], maxZoom: 15, duration: 0.8 });
@@ -273,6 +322,10 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     const l = locOf(m.user_id);
     if (!m.share_location) return 'Location off';
     if (!l) return 'Waiting for a location';
+    if (staleOf(m.user_id)) {
+      const last = stayOf(m.user_id);
+      return last ? `Last seen at ${last.place.name} · ${ago(l.updated_at, now)}` : `Last seen ${ago(l.updated_at, now)}`;
+    }
     const mv = movingOf(m.user_id);
     if (mv) return `${ACTIVITY_LABEL[mv.activity]} · ${kmh(mv.speed)} km/h`;
     const stay = stayFor(m.user_id);
@@ -287,7 +340,7 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
       <div className={`map-card${adding ? ' picking' : ''}`}>
         <div ref={mapEl} className="map" aria-label="Map of your household" />
         <div className="map-tools">
-          {myLoc && <button className="icon big" onClick={() => flyTo(myLoc.lat, myLoc.lng)} aria-label="Show me"><Icon.locate /></button>}
+          {shown.length > 0 && <button className={`icon big${following ? ' following' : ''}`} onClick={startFollowing} aria-label="Follow everyone" aria-pressed={following}><Icon.locate /></button>}
           {(shown.length + hh.places.length) > 1 && <button className="icon big" onClick={fitAll} aria-label="Show everyone"><Icon.map /></button>}
         </div>
         {adding && <div className="map-hint">{draft.lat == null ? 'Tap the map to drop a pin' : 'Pin dropped. Tap again to move it'}</div>}
@@ -339,7 +392,8 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
               <div className="tile-sub">{statusLine(m)}</div>
               <div className="tile-sub faint">
                 {online && <span className="live-dot" />}
-                <span>{online ? 'Online now' : m.last_seen ? `Seen ${ago(m.last_seen, now)}` : 'Not seen yet'}{l && m.share_location ? ` · updated ${ago(l.updated_at, now)}` : ''}</span>
+                <span>{online ? 'Online now' : m.last_seen ? `Seen ${ago(m.last_seen, now)}` : 'Not seen yet'}{l && m.share_location && !staleOf(m.user_id) ? ` · updated ${ago(l.updated_at, now)}` : ''}</span>
+                {l && m.share_location && staleOf(m.user_id) && <span className="block">Updates when {m.display_name} opens Weee</span>}
               </div>
             </button>
           );
