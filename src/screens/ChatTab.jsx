@@ -11,6 +11,18 @@ function dayLabel(iso, now) {
   if (d === -1) return 'Yesterday';
   return new Date(iso).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
 }
+// ✓ sent · ✓✓ delivered (their app has been open since) · blue ✓✓ seen
+function Ticks({ state }) {
+  const one = 'M3.5 12.5l4 4 8.5-9';
+  const two = 'M8.5 12.5l4 4 8.5-9';
+  return (
+    <svg className={`ticks ${state}`} width="18" height="12" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-label={state === 'seen' ? 'Seen' : state === 'delivered' ? 'Delivered' : 'Sent'}>
+      <path d={one} transform="translate(0 -2)" />
+      {state !== 'sent' && <path d={two} transform="translate(0 -2)" />}
+    </svg>
+  );
+}
+
 const timeOf = iso => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 
 export default function ChatTab({ hh, actions, nameOf, me, now }) {
@@ -85,6 +97,12 @@ export default function ChatTab({ hh, actions, nameOf, me, now }) {
   // "Seen" under my latest message once everyone else has read past it
   const lastMine = [...msgs].reverse().find(m => m.user_id === me && !m.pending);
   const seen = lastMine && others.length > 0 && others.every(o => o.chat_read_at && Date.parse(o.chat_read_at) >= Date.parse(lastMine.created_at));
+  const tickState = m => {
+    const at = Date.parse(m.created_at);
+    if (others.length && others.every(o => o.chat_read_at && Date.parse(o.chat_read_at) >= at)) return 'seen';
+    if (others.length && others.every(o => hh.online.includes(o.user_id) || (o.last_seen && Date.parse(o.last_seen) >= at))) return 'delivered';
+    return 'sent';
+  };
 
   function grow(el) {
     el.style.height = 'auto';
@@ -119,7 +137,13 @@ export default function ChatTab({ hh, actions, nameOf, me, now }) {
               onConfirm={() => { setSelected(null); actions.unsendMessage(m); }}>Unsend for everyone</ConfirmButton>}
           </div>
         )}
-        {!joinsNext && <div className="msg-time">{m.pending ? 'Sending…' : timeOf(m.created_at)}{mine && m.id === lastMine?.id && seen ? ' · Seen' : ''}</div>}
+        {!joinsNext && (
+          <div className="msg-time">
+            {m.pending ? 'Sending…' : timeOf(m.created_at)}
+            {mine && !m.pending && <Ticks state={tickState(m)} />}
+            {mine && m.id === lastMine?.id && seen && <span className="seen-label">Seen</span>}
+          </div>
+        )}
       </div>,
     );
   });

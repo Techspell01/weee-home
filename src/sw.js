@@ -23,28 +23,22 @@ const VIBRATE = {
 self.addEventListener('push', event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data?.text() }; }
-  event.waitUntil((async () => {
-    // If Weee is open on screen it plays its own sound and shows a banner,
-    // so the system notification arrives quietly instead of a double alert.
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const open = windows.some(w => w.visibilityState === 'visible');
-    const options = {
-      body: data.body || '',
-      icon: '/pwa-192.png',
-      badge: '/pwa-192.png',
-      tag: data.tag,
-      data: { url: data.url || '/' },
-      silent: open,
-      timestamp: Date.now(),
-    };
-    if (!open) {
-      options.vibrate = VIBRATE[data.kind] || [100];
-      // A notification that replaces an older one with the same tag (e.g. the chat)
-      // is silent unless renotify is set: always alert again.
-      if (data.tag) options.renotify = true;
-    }
-    await self.registration.showNotification(data.title || 'Weee', options);
-  })());
+  // Always a full, audible notification. (Quieting it when the app looked "open"
+  // made iPhone deliver notifications silently while Weee was closed in the
+  // background, because iOS can still report a suspended app as visible.)
+  event.waitUntil(self.registration.showNotification(data.title || 'Weee', {
+    body: data.body || '',
+    icon: '/pwa-192.png',
+    badge: '/pwa-192.png',
+    tag: data.tag,
+    // A notification replacing an older one with the same tag (e.g. the chat)
+    // is silent unless renotify is set: always alert again.
+    renotify: Boolean(data.tag),
+    silent: false,
+    vibrate: VIBRATE[data.kind] || [100],
+    timestamp: Date.now(),
+    data: { url: data.url || '/' },
+  }));
 });
 
 self.addEventListener('notificationclick', event => {

@@ -16,6 +16,7 @@ export default function PushSettings({ householdId, notify }) {
       setPermission(p);
       if (p === 'granted' && !error) {
         setSubscribed(true);
+        window.dispatchEvent(new Event('weee:push-changed'));
         notify('Notifications are on');
         const r = await sendTestPush();
         if (!r?.sent) notify("Couldn't send a test notification yet. Try the Send a test button in a moment.");
@@ -28,7 +29,7 @@ export default function PushSettings({ householdId, notify }) {
 
   async function turnOff() {
     setBusy(true);
-    try { await disablePush(); setSubscribed(false); notify('Notifications are off on this device'); } catch { /* ignore */ }
+    try { await disablePush(); setSubscribed(false); notify('Notifications are off on this device'); window.dispatchEvent(new Event('weee:push-changed')); } catch { /* ignore */ }
     setBusy(false);
   }
 

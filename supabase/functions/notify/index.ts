@@ -128,11 +128,19 @@ Deno.serve(async req => {
     const { table, record } = await req.json();
     const built = await messageFor(table, record);
     if (!built) return json({ sent: 0, reason: 'ignored table' });
-    let q = admin.from('push_subscriptions').select('id, endpoint, p256dh, auth').eq('household_id', record.household_id);
+    let q = admin.from('push_subscriptions').select('id, user_id, endpoint, p256dh, auth').eq('household_id', record.household_id);
     if (built.actor) q = q.neq('user_id', built.actor);
     const { data: subs, error } = await q;
     if (error) return json({ error: error.message }, 500);
-    return json({ sent: await send(subs ?? [], built.msg) });
+    let recipients = subs ?? [];
+    // Arrive/leave alerts go only to people who kept alerts on for that place.
+    if (table === 'place_event') {
+      const { data: off } = await admin.from('place_alert_prefs').select('user_id')
+        .eq('place_id', record.id).eq('enabled', false);
+      const muted = new Set((off ?? []).map(o => o.user_id));
+      recipients = recipients.filter(s => !muted.has(s.user_id));
+    }
+    return json({ sent: await send(recipients, built.msg) });
   }
 
   // 2. Test from Settings: signed-in user, own devices only

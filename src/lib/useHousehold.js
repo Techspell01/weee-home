@@ -16,9 +16,10 @@ const TABLES = {
   messages: { table: 'messages', select: '*', order: 'created_at', desc: true, limit: 300 },
   visits: { table: 'place_visits', select: '*', order: 'arrived_at', desc: true, limit: 200 },
   hides: { table: 'message_hides', select: 'message_id', order: 'message_id' }, // only my own (RLS)
+  alertPrefs: { table: 'place_alert_prefs', select: 'place_id, user_id, enabled', order: 'place_id' },
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [], visits: [], hides: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [], visits: [], hides: [], alertPrefs: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item or a plan,
 // or arrives at / leaves a saved place ('presence').

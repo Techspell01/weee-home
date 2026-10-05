@@ -4,7 +4,8 @@ import { makeActions } from '../lib/actions.js';
 import { groupOf, whenLabel } from '../lib/plans.js';
 import { AlertBanner, Icon, Toasts, useToasts } from '../components/ui.jsx';
 import TabBar from '../components/TabBar.jsx';
-import { resyncPush } from '../lib/push.js';
+import { isSubscribed, resyncPush } from '../lib/push.js';
+import { alertsOn } from '../lib/places.js';
 import { haptic } from '../lib/haptics.js';
 import { useLocationSharing } from '../lib/location.js';
 import { playSound } from '../lib/sounds.js';
@@ -85,23 +86,33 @@ export default function Home({ membership, me, onLeft }) {
   };
 
   // Realtime callbacks fire later, so they read the latest state from a ref.
-  const latest = useRef({ members: [], places: [], presence: [], inChat: false });
+  const latest = useRef({ members: [], places: [], presence: [], alertPrefs: [], inChat: false, pushOn: false });
+  // Is this phone getting push notifications? Then the system notification
+  // already makes a sound, so the app doesn't play a second one.
+  const [pushOn, setPushOn] = useState(false);
+  useEffect(() => {
+    const check = () => isSubscribed().then(setPushOn).catch(() => setPushOn(false));
+    check();
+    window.addEventListener('weee:push-changed', check);
+    return () => window.removeEventListener('weee:push-changed', check);
+  }, []);
   const hh = useHousehold(household.id, me, {
     onRemoteInsert: (key, row) => {
-      const { members, places, presence, inChat } = latest.current;
+      const { members, places, presence, alertPrefs, inChat, pushOn: viaPush } = latest.current;
       let text;
       if (key === 'messages') {
-        if (inChat) { playSound('soft'); return; } // already looking at it
-        playSound('chat');
+        if (inChat) { if (!viaPush) playSound('soft'); return; } // already looking at it
+        if (!viaPush) playSound('chat');
         haptic('notify');
         showAlert({ kind: 'chat', title: nameFrom(members, row.user_id), body: row.body.length > 90 ? row.body.slice(0, 87) + '…' : row.body, open: 'chat' });
         return;
       } else if (key === 'presence') {
+        if (!alertsOn({ alertPrefs }, row.place_id, me)) return; // I turned alerts off for this place
         const place = places.find(p => p.id === row.place_id)?.name || 'a saved place';
         const who = row.user_id === me ? 'You' : nameFrom(members, row.user_id);
         const before = presence.find(p => p.place_id === row.place_id && p.user_id === row.user_id);
         const stayed = !row.inside && before?.changed_at ? formatStay(Date.now() - Date.parse(before.changed_at)) : null;
-        playSound(row.inside ? 'arrive' : 'leave');
+        if (!viaPush || row.user_id === me) playSound(row.inside ? 'arrive' : 'leave');
         haptic('notify');
         showAlert({
           kind: row.inside ? 'arrive' : 'leave',
@@ -121,7 +132,7 @@ export default function Home({ membership, me, onLeft }) {
     },
   });
   const inChat = tab === 'discover' && sub === 'chat';
-  latest.current = { members: hh.members, places: hh.places, presence: hh.presence, inChat };
+  latest.current = { members: hh.members, places: hh.places, presence: hh.presence, alertPrefs: hh.alertPrefs, inChat, pushOn };
 
   const nameOf = id => nameFrom(hh.members, id);
   const actions = makeActions({ householdId: household.id, me, hh, notify });

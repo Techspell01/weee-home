@@ -651,7 +651,11 @@ button.tile:active, .row.upcoming:active, .result:active { transform: scale(0.98
 .msg.mine.joins-prev .bubble { border-top-right-radius: 8px; }
 .msg.mine.joins-next .bubble { border-bottom-right-radius: 8px; }
 .msg.pending .bubble { opacity: .6; }
-.msg-time { font-size: 11.5px; color: var(--faint); margin: 5px 10px 0; }
+.msg-time { font-size: 11.5px; color: var(--faint); margin: 5px 10px 0; display: inline-flex; align-items: center; gap: 4px; }
+.ticks { color: var(--faint); flex: none; }
+.ticks.delivered { color: var(--muted); }
+.ticks.seen { color: var(--accent); }
+.seen-label { color: var(--accent); font-weight: 600; }
 .msg-actions { margin-top: 6px; }
 .msg { animation: msg-in .32s cubic-bezier(.34, 1.3, .5, 1); }
 @keyframes msg-in { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
@@ -727,3 +731,16 @@ body.kb-open .composer { bottom: calc(var(--kb, 0px) + 10px); }
 .clear-panel { margin-top: 12px; border-color: rgba(255, 123, 107, 0.2); }
 .sound-tests { margin-top: 10px; }
 @media (prefers-reduced-motion: reduce) { .alert-banner { animation: none; } }
+
+/* per-person place alerts */
+.place-dot { font-weight: 700; font-size: 15px; }
+.place-label i { font-style: normal; display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 5px; border-radius: 50%; background: #F4F4F5; color: #0A0A0B; font-size: 10px; font-weight: 800; vertical-align: -3px; }
+.alert-toggle {
+  flex-basis: 100%; display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 8px; row-gap: 2px;
+  margin-top: 4px; padding: 10px 12px; border-radius: 16px; text-align: left; font: inherit;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); color: var(--muted);
+}
+.alert-toggle span { font-weight: 700; font-size: 14px; }
+.alert-toggle small { grid-column: 1 / -1; font-size: 12.5px; color: var(--faint); }
+.alert-toggle.on { background: rgba(125, 219, 155, 0.08); border-color: rgba(125, 219, 155, 0.25); color: var(--good); }
+.alert-toggle.on small { color: var(--muted); }

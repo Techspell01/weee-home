@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { BigValue, ConfirmButton, Empty, Icon } from '../components/ui.jsx';
 import { ACTIVITY_LABEL, distanceM, formatDistance, geoSupported, isFresh, kmh, requestPosition } from '../lib/location.js';
 import { ago, formatStay } from '../lib/time.js';
+import { alertsOn } from '../lib/places.js';
 import { haptic } from '../lib/haptics.js';
 
 // Standard OpenStreetMap tiles (free, no key, attribution required), darkened
@@ -68,6 +69,15 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
     return { ms: Math.max(0, end - since), place: saved?.place || null };
   };
   const STAY_MIN = 3 * 60000; // don't show a timer for brief stops
+
+  // Places grouped by who added them; both people see all of them.
+  const ownerName = id => (id === me ? 'You' : nameOf(id));
+  const placeGroups = [...new Set([me, ...hh.members.map(m => m.user_id), ...hh.places.map(p => p.created_by)])]
+    .map(id => ({ key: id || 'unknown', title: id === me ? 'Your places' : id ? `${ownerName(id)}'s places` : 'Other places', places: hh.places.filter(p => p.created_by === id) }))
+    .filter(g => g.places.length);
+  const otherPeople = hh.members.filter(m => m.user_id !== me);
+  const othersCount = otherPeople.length;
+  const othersLabel = othersCount ? otherPeople.map(m => m.display_name).join(' or ') : 'someone';
   const movingOf = id => { const l = locOf(id); return isFresh(l, now) && l.activity && l.activity !== 'still' ? l : null; };
   const people = [...hh.members].sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
   const shown = people.filter(m => m.share_location && locOf(m.user_id));
@@ -135,7 +145,7 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
   }, [peopleKey, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- place circles ----------
-  const placesKey = hh.places.map(p => `${p.id}:${p.lat}:${p.lng}:${p.radius_m}:${p.name}`).join('|');
+  const placesKey = hh.places.map(p => `${p.id}:${p.lat}:${p.lng}:${p.radius_m}:${p.name}:${p.created_by}`).join('|');
   useEffect(() => {
     const m = map.current;
     if (!m) return;
@@ -146,7 +156,7 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
       if (old) { old.circle.remove(); old.label.remove(); }
       const circle = L.circle([p.lat, p.lng], { radius: p.radius_m, color: '#ffffff', weight: 1, opacity: 0.55, fillColor: '#ffffff', fillOpacity: 0.06, interactive: false }).addTo(m);
       const label = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: 'place-label-wrap', html: `<div class="place-label">${esc(p.name)}</div>`, iconSize: null }),
+        icon: L.divIcon({ className: 'place-label-wrap', html: `<div class="place-label"><i>${esc(initialOf(p.created_by === me ? mine?.display_name : nameOf(p.created_by)))}</i>${esc(p.name)}</div>`, iconSize: null }),
         interactive: false, keyboard: false,
       }).addTo(m);
       layers.current.places.set(p.id, { circle, label });
@@ -354,51 +364,61 @@ export default function MapTab({ hh, actions, nameOf, notify, me, now }) {
         {!adding && <button type="button" className="btn ghost small push" onClick={startAdding}><Icon.plus /> Add place</button>}
       </div>
       {!hh.loaded ? <Empty title="Loading…" /> : hh.places.length === 0 ? (
-        <Empty title="No places yet">Save places like Home, Office or your favourite café. When someone who shares their location arrives or leaves, everyone else gets a notification.</Empty>
-      ) : (
-        <div className="list">
-          {hh.places.map(p => {
-            const here = hh.presence.filter(pr => pr.place_id === p.id && pr.inside);
-            const visits = hh.visits.filter(v => v.place_id === p.id).slice().reverse().slice(0, 8);
-            const showing = history === p.id;
-            return (
-              <div key={p.id} className={`row place${showing ? ' open' : ''}`}>
-                <button type="button" className="place-dot" onClick={() => flyTo(p.lat, p.lng)} aria-label={`Show ${p.name} on the map`}><Icon.map /></button>
-                <div className="main" onClick={() => flyTo(p.lat, p.lng)}>
-                  <div className="name">{p.name}</div>
-                  <div className="meta">
-                    {here.length
-                      ? here.map(pr => `${nameOf(pr.user_id)} here · ${formatStay(now - Date.parse(pr.changed_at))}`).join(' · ')
-                      : 'Nobody here'} · {p.radius_m} m
+        <Empty title="No places yet">Save places like Home, Office or your favourite café. Places either of you add show on both maps, and each of you chooses which ones to get arrive and leave alerts for.</Empty>
+      ) : placeGroups.map(g => (
+        <div key={g.key}>
+          <div className="label minor">{g.title}</div>
+          <div className="list">
+            {g.places.map(p => {
+              const here = hh.presence.filter(pr => pr.place_id === p.id && pr.inside);
+              const visits = hh.visits.filter(v => v.place_id === p.id).slice().reverse().slice(0, 8);
+              const showing = history === p.id;
+              const on = alertsOn(hh, p.id, me);
+              return (
+                <div key={p.id} className={`row place${showing ? ' open' : ''}`}>
+                  <button type="button" className="place-dot" onClick={() => flyTo(p.lat, p.lng)} aria-label={`Show ${p.name} on the map`}>
+                    {initialOf(p.created_by === me ? mine?.display_name : nameOf(p.created_by))}
+                  </button>
+                  <div className="main" onClick={() => flyTo(p.lat, p.lng)}>
+                    <div className="name">{p.name}</div>
+                    <div className="meta">
+                      {here.length
+                        ? here.map(pr => `${nameOf(pr.user_id)} here · ${formatStay(now - Date.parse(pr.changed_at))}`).join(' · ')
+                        : 'Nobody here'} · {p.radius_m} m
+                    </div>
+                    {visits.length > 0 && (
+                      <button type="button" className="link small-link" onClick={e => { e.stopPropagation(); setHistory(showing ? null : p.id); }}>
+                        {showing ? 'Hide history' : `History · ${visits.length} visit${visits.length === 1 ? '' : 's'}`}
+                      </button>
+                    )}
                   </div>
-                  {visits.length > 0 && (
-                    <button type="button" className="link small-link" onClick={e => { e.stopPropagation(); setHistory(showing ? null : p.id); }}>
-                      {showing ? 'Hide history' : `History · ${visits.length} visit${visits.length === 1 ? '' : 's'}`}
-                    </button>
+                  <ConfirmButton label={`Delete ${p.name}`} confirmLabel="Delete?" onConfirm={() => actions.removePlace(p)}><Icon.trash /></ConfirmButton>
+                  <button type="button" className={`alert-toggle${on ? ' on' : ''}`} data-haptic="select" onClick={() => actions.setPlaceAlerts(p, !on)}
+                    role="switch" aria-checked={on} aria-label={`Arrive and leave alerts for ${p.name}`}>
+                    {Icon.bell(on)}
+                    <span>{on ? 'Alerts on' : 'Alerts off'}</span>
+                    <small>{on ? `You'll hear when ${othersLabel} arrive${othersCount === 1 ? 's' : ''} or leave${othersCount === 1 ? 's' : ''}` : 'Tap to get arrive and leave alerts'}</small>
+                  </button>
+                  {showing && (
+                    <div className="visits">
+                      {visits.map(v => {
+                        const end = v.left_at ? Date.parse(v.left_at) : now;
+                        return (
+                          <div key={v.id} className="visit">
+                            <span className="visit-who">{nameOf(v.user_id)}</span>
+                            <span className="visit-when">{dayName(v.arrived_at, now)} · {clock(v.arrived_at)}{v.left_at ? ` – ${clock(v.left_at)}` : ' – now'}</span>
+                            <span className="visit-len">{formatStay(end - Date.parse(v.arrived_at))}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-                <button type="button" className={`icon${p.notify ? ' bell-on' : ''}`} data-haptic="select" onClick={() => actions.togglePlaceAlerts(p)}
-                  aria-label={p.notify ? `Turn off alerts for ${p.name}` : `Turn on alerts for ${p.name}`} aria-pressed={p.notify}>{Icon.bell(p.notify)}</button>
-                <ConfirmButton label={`Delete ${p.name}`} confirmLabel="Delete?" onConfirm={() => actions.removePlace(p)}><Icon.trash /></ConfirmButton>
-                {showing && (
-                  <div className="visits">
-                    {visits.map(v => {
-                      const end = v.left_at ? Date.parse(v.left_at) : now;
-                      return (
-                        <div key={v.id} className="visit">
-                          <span className="visit-who">{nameOf(v.user_id)}</span>
-                          <span className="visit-when">{dayName(v.arrived_at, now)} · {clock(v.arrived_at)}{v.left_at ? ` – ${clock(v.left_at)}` : ' – now'}</span>
-                          <span className="visit-len">{formatStay(end - Date.parse(v.arrived_at))}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      )}
+      ))}
     </section>
   );
 }

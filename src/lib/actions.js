@@ -115,9 +115,14 @@ export function makeActions({ householdId, me, hh, notify }) {
       if (ok) haptic('success');
       return ok;
     },
-    togglePlaceAlerts(place) {
-      hh.patch('places', place.id, { notify: !place.notify });
-      return run(supabase.from('places').update({ notify: !place.notify }).eq('id', place.id), 'places');
+    // My own arrive/leave alerts for one place (each person chooses separately).
+    async setPlaceAlerts(place, enabled) {
+      hh.drop('alertPrefs', r => r.place_id === place.id && r.user_id === me);
+      hh.add('alertPrefs', { place_id: place.id, user_id: me, enabled });
+      const ok = await run(supabase.from('place_alert_prefs')
+        .upsert({ place_id: place.id, user_id: me, household_id: householdId, enabled }, { onConflict: 'place_id,user_id' }), 'alertPrefs');
+      if (ok) haptic(enabled ? 'success' : 'select');
+      return ok;
     },
     removePlace(place) {
       hh.drop('places', r => r.id === place.id);
