@@ -13,8 +13,7 @@ registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
 // Vibration per kind (Android). iPhone uses its standard notification sound.
 const VIBRATE = {
   chat: [80, 60, 80],
-  arrive: [120, 80, 120, 80, 220],
-  leave: [220, 100, 120],
+  reminder: [200, 100, 200, 100, 400],
   item: [100],
   plan: [100, 60, 100],
   test: [100, 60, 100],

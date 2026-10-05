@@ -1,34 +1,30 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useHousehold } from '../lib/useHousehold.js';
 import { makeActions } from '../lib/actions.js';
 import { groupOf, whenLabel } from '../lib/plans.js';
 import { AlertBanner, Icon, Toasts, useToasts } from '../components/ui.jsx';
 import TabBar from '../components/TabBar.jsx';
 import { isSubscribed, resyncPush } from '../lib/push.js';
-import { alertsOn } from '../lib/places.js';
 import { haptic } from '../lib/haptics.js';
-import { useLocationSharing } from '../lib/location.js';
 import { playSound } from '../lib/sounds.js';
-import { formatStay } from '../lib/time.js';
+import { dueState } from '../lib/tracker.js';
 import { visibleMessages } from '../lib/chat.js';
 import PlansTab from './PlansTab.jsx';
+import TrackerTab from './TrackerTab.jsx';
 import DiscoverTab from './DiscoverTab.jsx';
 import ListTab from './ListTab.jsx';
 import MoneyTab from './MoneyTab.jsx';
 import ChatTab from './ChatTab.jsx';
 import Settings from './Settings.jsx';
 
-// The map library is large, so it only loads when the Map tab opens.
-const MapTab = lazy(() => import('./MapTab.jsx'));
-
 const TABS = [
   { id: 'plans', label: 'Plans', icon: Icon.calendar },
-  { id: 'map', label: 'Map', icon: Icon.map },
+  { id: 'tracker', label: 'Tracker', icon: Icon.tracker },
   { id: 'discover', label: 'Discover', icon: Icon.discover },
 ];
 const ORDER = TABS.map(t => t.id);
 const SUBS = ['list', 'money', 'chat'];   // pages inside Discover
-const TITLES = { plans: 'Plans', map: 'Places', discover: 'Discover', settings: 'Settings', list: 'Shopping', money: 'Money', chat: 'Chat' };
+const TITLES = { plans: 'Plans', tracker: 'Tracker', discover: 'Discover', settings: 'Settings', list: 'Shopping', money: 'Money', chat: 'Chat' };
 
 // Where to open: a notification link (?tab=chat) first, then where you left off.
 function readStart() {
@@ -86,7 +82,7 @@ export default function Home({ membership, me, onLeft }) {
   };
 
   // Realtime callbacks fire later, so they read the latest state from a ref.
-  const latest = useRef({ members: [], places: [], presence: [], alertPrefs: [], inChat: false, pushOn: false });
+  const latest = useRef({ members: [], trackers: [], inChat: false, pushOn: false });
   // Is this phone getting push notifications? Then the system notification
   // already makes a sound, so the app doesn't play a second one.
   const [pushOn, setPushOn] = useState(false);
@@ -98,28 +94,13 @@ export default function Home({ membership, me, onLeft }) {
   }, []);
   const hh = useHousehold(household.id, me, {
     onRemoteInsert: (key, row) => {
-      const { members, places, presence, alertPrefs, inChat, pushOn: viaPush } = latest.current;
+      const { members, inChat, pushOn: viaPush } = latest.current;
       let text;
       if (key === 'messages') {
         if (inChat) { if (!viaPush) playSound('soft'); return; } // already looking at it
         if (!viaPush) playSound('chat');
         haptic('notify');
         showAlert({ kind: 'chat', title: nameFrom(members, row.user_id), body: row.body.length > 90 ? row.body.slice(0, 87) + '…' : row.body, open: 'chat' });
-        return;
-      } else if (key === 'presence') {
-        if (!alertsOn({ alertPrefs }, row.place_id, me)) return; // I turned alerts off for this place
-        const place = places.find(p => p.id === row.place_id)?.name || 'a saved place';
-        const who = row.user_id === me ? 'You' : nameFrom(members, row.user_id);
-        const before = presence.find(p => p.place_id === row.place_id && p.user_id === row.user_id);
-        const stayed = !row.inside && before?.changed_at ? formatStay(Date.now() - Date.parse(before.changed_at)) : null;
-        if (!viaPush || row.user_id === me) playSound(row.inside ? 'arrive' : 'leave');
-        haptic('notify');
-        showAlert({
-          kind: row.inside ? 'arrive' : 'leave',
-          title: `${who} ${row.inside ? 'arrived at' : 'left'} ${place}`,
-          body: stayed ? `Stayed ${stayed} · tap to see the map` : 'Just now · tap to see the map',
-          open: 'map',
-        });
         return;
       } else if (key === 'plans') {
         const who = nameFrom(members, row.created_by);
@@ -132,22 +113,40 @@ export default function Home({ membership, me, onLeft }) {
     },
   });
   const inChat = tab === 'discover' && sub === 'chat';
-  latest.current = { members: hh.members, places: hh.places, presence: hh.presence, alertPrefs: hh.alertPrefs, inChat, pushOn };
+  latest.current = { members: hh.members, trackers: hh.trackers, inChat, pushOn };
 
   const nameOf = id => nameFrom(hh.members, id);
   const actions = makeActions({ householdId: household.id, me, hh, notify });
   const mine = hh.members.find(m => m.user_id === me);
-  const sharing = Boolean(mine?.share_location);
 
-  // Share this phone's position while Weee is open (only if this person turned it on).
-  const lastGeoError = useRef(0);
-  const myFix = useLocationSharing({
-    householdId: household.id, me, enabled: sharing,
-    onError: err => {
-      if (Date.now() - lastGeoError.current < 60000) return; // don't repeat the same warning
-      lastGeoError.current = Date.now();
-      if (err?.code === 1) notify('Location is blocked for Weee, so your position is not updating.');
-    },
+  // In-app reminder: when one of my follow-ups becomes due while Weee is open,
+  // show a banner and ring (the push notification covers the app being closed).
+  const alerted = useRef(new Set());
+  const openedAt = useRef(Date.now());
+  useEffect(() => {
+    const check = () => {
+      const t = Date.now();
+      for (const tr of latest.current.trackers) {
+        if (tr.owner !== me || tr.done || !tr.next_at) continue;
+        const at = Date.parse(tr.next_at);
+        const key = `${tr.id}:${tr.next_at}`;
+        if (at > t || at < openedAt.current - 60000 || alerted.current.has(key)) continue;
+        alerted.current.add(key);
+        if (!latest.current.pushOn) playSound('alarm');
+        haptic('notify');
+        showAlert({ kind: 'reminder', title: `Follow up: ${tr.title}`, body: tr.details || 'Time to follow up · tap to open', open: 'tracker' });
+      }
+    };
+    check();
+    const iv = setInterval(check, 15000);
+    return () => clearInterval(iv);
+  }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Open Settings" buttons elsewhere (e.g. the notifications hint)
+  useEffect(() => {
+    const open = () => go('settings');
+    window.addEventListener('weee:open-settings', open);
+    return () => window.removeEventListener('weee:open-settings', open);
   });
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(t); }, []);
@@ -164,6 +163,7 @@ export default function Home({ membership, me, onLeft }) {
   const unread = visibleMessages(hh, me).filter(m => m.user_id !== me && Date.parse(m.created_at) > readAt).length;
   const badges = {
     plans: hh.plans.filter(p => !p.done && (!p.owner || p.owner === me) && ['missed', 'today'].includes(groupOf(p, now))).length,
+    tracker: hh.trackers.filter(t => t.owner === me && dueState(t, now) === 'overdue').length,
     discover: unread,
   };
   const partner = hh.members.find(m => m.user_id !== me);
@@ -197,7 +197,7 @@ export default function Home({ membership, me, onLeft }) {
 
         <div key={page} className={`page page-${motion}`}>
           {page === 'plans' && <PlansTab {...shared} />}
-          {page === 'map' && <Suspense fallback={<div className="map-card"><div className="map" /></div>}><MapTab {...shared} myFix={myFix} /></Suspense>}
+          {page === 'tracker' && <TrackerTab {...shared} />}
           {page === 'discover' && <DiscoverTab {...shared} open={openSub} unread={unread} />}
           {page === 'list' && <ListTab {...shared} />}
           {page === 'money' && <MoneyTab {...shared} />}
@@ -213,7 +213,7 @@ export default function Home({ membership, me, onLeft }) {
           const to = alert?.open;
           setAlert(null);
           if (to === 'chat') { if (tab !== 'discover') go('discover'); openSub('chat'); }
-          else if (to === 'map') go('map');
+          else if (to === 'tracker') go('tracker');
         }} />
     </>
   );

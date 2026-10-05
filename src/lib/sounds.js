@@ -1,7 +1,6 @@
 // In-app sounds, synthesised with Web Audio (no audio files).
 //   chat   – a soft two-note "pop" for a new message
-//   arrive – a rising three-note chime when someone arrives at a place
-//   leave  – the same chime falling when someone leaves
+//   alarm  – a two-tone alarm for a follow-up reminder that's due
 //   soft   – a quiet tick for a message while the chat is already open
 // Phones only allow sound after the person has touched the page, so the audio
 // engine is unlocked on the first tap (see unlockAudio in main.jsx). Like other
@@ -49,8 +48,7 @@ function note(freq, at, length, volume) {
 
 const PATTERNS = {
   chat: [[988, 0, 0.16, 0.16], [1319, 0.09, 0.22, 0.13]],
-  arrive: [[659, 0, 0.3, 0.14], [880, 0.13, 0.3, 0.14], [1175, 0.26, 0.55, 0.15]],
-  leave: [[1175, 0, 0.3, 0.14], [880, 0.13, 0.3, 0.14], [659, 0.26, 0.55, 0.15]],
+  alarm: [[880, 0, 0.18, 0.16], [1175, 0.2, 0.18, 0.16], [880, 0.4, 0.18, 0.16], [1175, 0.6, 0.18, 0.16], [880, 0.8, 0.18, 0.16], [1397, 1.0, 0.45, 0.17]],
   soft: [[1319, 0, 0.12, 0.06]],
 };
 

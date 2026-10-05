@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js';
 import { guessCategory, guessDays, itemKey, parseList } from './groceries.js';
 import { haptic } from './haptics.js';
+import { nextRepeat } from './tracker.js';
 
 export function friendlyError(error) {
   const msg = error?.message || '';
@@ -19,6 +20,10 @@ export function makeActions({ householdId, me, hh, notify }) {
     return !error;
   };
   const now = () => new Date().toISOString();
+  const updateTracker = (id, changes) => {
+    hh.patch('trackers', id, changes);
+    return run(supabase.from('trackers').update(changes).eq('id', id), 'trackers');
+  };
 
   const recordPurchase = (name, overrideDays = null) =>
     run(supabase.rpc('record_purchase', {
@@ -103,31 +108,35 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('plans').delete().eq('id', p.id), 'plans');
     },
 
-    // Location sharing: each person turns it on or off for themselves.
-    async setSharing(on) {
-      const ok = await run(supabase.from('household_members').update({ share_location: on })
-        .eq('household_id', householdId).eq('user_id', me), 'members');
-      if (ok) { haptic(on ? 'success' : 'select'); hh.refresh('locations'); }
-      return ok;
-    },
-    async addPlace({ name, lat, lng, radius }) {
-      const ok = await run(supabase.from('places').insert({ household_id: householdId, name, lat, lng, radius_m: radius }), 'places');
+    // Follow-up tracker
+    async addTracker(row) {
+      const ok = await run(supabase.from('trackers').insert({ household_id: householdId, ...row }), 'trackers');
       if (ok) haptic('success');
       return ok;
     },
-    // My own arrive/leave alerts for one place (each person chooses separately).
-    async setPlaceAlerts(place, enabled) {
-      hh.drop('alertPrefs', r => r.place_id === place.id && r.user_id === me);
-      hh.add('alertPrefs', { place_id: place.id, user_id: me, enabled });
-      const ok = await run(supabase.from('place_alert_prefs')
-        .upsert({ place_id: place.id, user_id: me, household_id: householdId, enabled }, { onConflict: 'place_id,user_id' }), 'alertPrefs');
-      if (ok) haptic(enabled ? 'success' : 'select');
+    updateTracker,
+    async followedUp(t, note = '') {
+      const at = now();
+      const log = [{ at, note: note.trim().slice(0, 200) }, ...(Array.isArray(t.log) ? t.log : [])].slice(0, 20);
+      const changes = {
+        followups: (t.followups || 0) + 1,
+        last_followup_at: at,
+        log,
+        next_at: nextRepeat(t),
+        stage: t.kind === 'job' && (!t.stage || t.stage === 'applied') ? 'followed_up' : t.stage,
+      };
+      const ok = await updateTracker(t.id, changes);
+      if (ok) haptic('success');
       return ok;
     },
-    removePlace(place) {
-      hh.drop('places', r => r.id === place.id);
-      return run(supabase.from('places').delete().eq('id', place.id), 'places');
+    snoozeTracker(t, at) {
+      return updateTracker(t.id, { next_at: at.toISOString() });
     },
+    removeTracker(t) {
+      hh.drop('trackers', r => r.id === t.id);
+      return run(supabase.from('trackers').delete().eq('id', t.id), 'trackers');
+    },
+
 
     // Chat
     async sendMessage(body) {

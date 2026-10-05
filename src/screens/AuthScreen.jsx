@@ -32,7 +32,7 @@ export default function AuthScreen() {
     <main className="center-screen">
       <div className="auth-card">
         <h1 className="brand big">Weee</h1>
-        <p className="sub">Your home, together. Plans, shopping, places and money, shared live with the person you live with.</p>
+        <p className="sub">Your home, together. Plans, shopping, follow-ups and money, shared live with the person you live with.</p>
 
         <div className="seg" role="tablist">
           <button type="button" role="tab" aria-selected={mode === 'signin'} onClick={() => { setMode('signin'); setMessage(null); }}>Sign in</button>

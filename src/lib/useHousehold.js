@@ -4,25 +4,21 @@ import { supabase } from './supabase.js';
 // Everything a household shares. Each table is fetched once, then refetched
 // whenever Supabase Realtime reports a change, so every phone stays in sync.
 const TABLES = {
-  members: { table: 'household_members', select: 'user_id, display_name, joined_at, share_location, last_seen, chat_read_at, chat_cleared_at', order: 'joined_at' },
+  members: { table: 'household_members', select: 'user_id, display_name, joined_at, last_seen, chat_read_at, chat_cleared_at', order: 'joined_at' },
   items: { table: 'items', select: '*', order: 'added_at' },
   pantry: { table: 'pantry', select: '*', order: 'name' },
   expenses: { table: 'expenses', select: '*', order: 'created_at' },
   plans: { table: 'plans', select: '*', order: 'created_at' },
-  places: { table: 'places', select: '*', order: 'created_at' },
-  locations: { table: 'member_locations', select: '*', order: 'updated_at' },
-  presence: { table: 'place_presence', select: '*', order: 'changed_at' },
   // newest 300 messages, shown oldest first
   messages: { table: 'messages', select: '*', order: 'created_at', desc: true, limit: 300 },
-  visits: { table: 'place_visits', select: '*', order: 'arrived_at', desc: true, limit: 200 },
   hides: { table: 'message_hides', select: 'message_id', order: 'message_id' }, // only my own (RLS)
-  alertPrefs: { table: 'place_alert_prefs', select: 'place_id, user_id, enabled', order: 'place_id' },
+  // mine, plus ones my partner chose to share (RLS)
+  trackers: { table: 'trackers', select: '*', order: 'created_at' },
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], places: [], locations: [], presence: [], messages: [], visits: [], hides: [], alertPrefs: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], trackers: [] };
 
-// onRemoteInsert(key, row) fires when someone else adds a list item or a plan,
-// or arrives at / leaves a saved place ('presence').
+// onRemoteInsert(key, row) fires when someone else adds a list item, a plan or a message.
 // `online` lists who has Weee open right now (Supabase Realtime presence).
 export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
   const [data, setData] = useState(EMPTY);
@@ -80,9 +76,6 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
           setTyping(t => ({ ...t, [row.user_id]: 0 })); // they sent it, so they stopped typing
         }
       }
-      // place_presence rows only change when someone really arrives or leaves
-      // (including my own, so I see "You arrived at Office" too)
-      if (key === 'presence' && payload.eventType === 'UPDATE') onRemoteInsertRef.current?.(key, row);
       schedule(key);
     };
 

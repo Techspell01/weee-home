@@ -21,7 +21,7 @@ const cors = {
 };
 
 type Sub = { id: string; endpoint: string; p256dh: string; auth: string };
-type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'arrive' | 'leave' | 'item' | 'plan' | 'test' };
+type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'reminder' | 'item' | 'plan' | 'test' };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function formatTime(t: string | null) {
@@ -35,14 +35,6 @@ function formatDate(d: string | null) {
   return new Date(Date.UTC(y, mo - 1, day)).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
-// "25 min", "2 h 5 min", "1 d 3 h"
-function stayed(minutes: number) {
-  if (minutes < 60) return `${Math.max(1, minutes)} min`;
-  const h = Math.floor(minutes / 60), m = minutes % 60;
-  if (h < 24) return m ? `${h} h ${m} min` : `${h} h`;
-  return `${Math.floor(h / 24)} d ${h % 24} h`;
-}
-
 async function displayName(householdId: string, userId: string | null) {
   if (!userId) return 'Someone';
   const { data } = await admin.from('household_members').select('display_name')
@@ -50,7 +42,7 @@ async function displayName(householdId: string, userId: string | null) {
   return data?.display_name || 'Someone';
 }
 
-async function messageFor(table: string, r: Record<string, any>): Promise<{ msg: Message; actor: string | null } | null> {
+async function messageFor(table: string, r: Record<string, any>): Promise<{ msg: Message; actor: string | null; only?: string } | null> {
   if (table === 'items') {
     const who = await displayName(r.household_id, r.added_by);
     return {
@@ -81,18 +73,16 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
       msg: { title: who, body: text.length > 160 ? text.slice(0, 157) + '…' : text, tag: `chat-${r.household_id}`, url: '/?tab=chat', kind: 'chat' },
     };
   }
-  if (table === 'place_event') {
-    const who = await displayName(r.household_id, r.user_id);
+  if (table === 'tracker_due') {
+    const STAGE: Record<string, string> = { applied: 'Applied', followed_up: 'Followed up', interview: 'Interview', offer: 'Offer', rejected: 'Rejected' };
+    const stage = r.stage ? STAGE[r.stage] : '';
+    const body = r.details || (r.kind === 'job'
+      ? `${stage ? stage + ' · ' : ''}${r.followups ? `followed up ${r.followups}×` : 'not followed up yet'}`
+      : 'Time to follow up');
     return {
-      actor: r.user_id,
-      msg: {
-        title: r.event === 'arrived' ? `${who} arrived at ${r.place}`
-          : `${who} left ${r.place}${r.minutes != null ? ` after ${stayed(r.minutes)}` : ''}`,
-        body: 'Open Weee to see the map',
-        tag: `place-${r.id}-${r.user_id}`,
-        url: '/?tab=map',
-        kind: r.event === 'arrived' ? 'arrive' : 'leave',
-      },
+      actor: null,
+      only: r.owner, // reminders go to the person who set them
+      msg: { title: `Follow up: ${r.title}`, body, tag: `tracker-${r.id}`, url: '/?tab=tracker', kind: 'reminder' },
     };
   }
   return null;
@@ -129,18 +119,11 @@ Deno.serve(async req => {
     const built = await messageFor(table, record);
     if (!built) return json({ sent: 0, reason: 'ignored table' });
     let q = admin.from('push_subscriptions').select('id, user_id, endpoint, p256dh, auth').eq('household_id', record.household_id);
-    if (built.actor) q = q.neq('user_id', built.actor);
+    if (built.only) q = q.eq('user_id', built.only);
+    else if (built.actor) q = q.neq('user_id', built.actor);
     const { data: subs, error } = await q;
     if (error) return json({ error: error.message }, 500);
-    let recipients = subs ?? [];
-    // Arrive/leave alerts go only to people who kept alerts on for that place.
-    if (table === 'place_event') {
-      const { data: off } = await admin.from('place_alert_prefs').select('user_id')
-        .eq('place_id', record.id).eq('enabled', false);
-      const muted = new Set((off ?? []).map(o => o.user_id));
-      recipients = recipients.filter(s => !muted.has(s.user_id));
-    }
-    return json({ sent: await send(recipients, built.msg) });
+    return json({ sent: await send(subs ?? [], built.msg) });
   }
 
   // 2. Test from Settings: signed-in user, own devices only

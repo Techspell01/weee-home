@@ -55,13 +55,12 @@ export default function Settings({ household, me, myName, hh, actions, nameOf, n
 
       <div className="label">Sounds</div>
       <label className="panel toggle-row">
-        <span className="grow"><b>Sounds in Weee</b><span className="meta block">A chime when someone arrives or leaves a place, and a pop for new messages, while Weee is open.</span></span>
+        <span className="grow"><b>Sounds in Weee</b><span className="meta block">An alarm when a follow-up is due, and a pop for new messages, while Weee is open.</span></span>
         <input id="soundsToggle" type="checkbox" role="switch" checked={sounds}
-          onChange={e => { setSoundsEnabled(e.target.checked); setSounds(e.target.checked); if (e.target.checked) playSound('arrive'); }} />
+          onChange={e => { setSoundsEnabled(e.target.checked); setSounds(e.target.checked); if (e.target.checked) playSound('alarm'); }} />
       </label>
       <div className="stack-row sound-tests">
-        <button type="button" className="btn ghost small" onClick={() => playSound('arrive')}>Play arrive</button>
-        <button type="button" className="btn ghost small" onClick={() => playSound('leave')}>Play leave</button>
+        <button type="button" className="btn ghost small" onClick={() => playSound('alarm')}>Play reminder</button>
         <button type="button" className="btn ghost small" onClick={() => playSound('chat')}>Play message</button>
       </div>
       <p className="hint">When Weee is closed, notifications use your phone's notification sound. On iPhone, check Settings → Notifications → Weee → Sounds is on.</p>
