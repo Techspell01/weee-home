@@ -8,11 +8,13 @@ import { haptic } from '../lib/haptics.js';
 //
 // Smoothness: only `transform` is animated (GPU-composited, no layout or
 // re-blur of the bar), from densely sampled keyframes with linear interpolation.
+// The lens itself has no blur of its own, so moving it costs the phone nothing.
+// About 0.3 s per move, like the iPhone's own tab bar.
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // easing curves (t: 0..1)
-const easeInOutCubic = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 const springOut = t => { // ease-out with a small, soft overshoot
   const c1 = 0.9, c3 = c1 + 1;
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
@@ -24,8 +26,8 @@ function liquidFrames(from, to, steps = 30) {
   const frames = [];
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const lead = springOut(Math.min(1, t * 1.12));   // front edge, quick
-    const trail = easeInOutCubic(t);                 // back edge, lags behind
+    const lead = springOut(Math.min(1, t * 1.3));               // front edge: off at once
+    const trail = easeOutCubic(Math.max(0, (t - 0.1) / 0.9));  // back edge: a beat behind, then catches up
     let left, right;
     if (d > 0) { right = from + 1 + d * lead; left = from + d * trail; }
     else { left = from + d * lead; right = from + 1 + d * trail; }
@@ -68,7 +70,7 @@ export default function TabBar({ tabs, current, onSelect, badges = {} }) {
     pill.style.transform = `translateX(${index * 100}%)`;
     if (skipNext.current) { skipNext.current = false; return; } // a drag already animated it
     if (from < 0 || from === index || reduceMotion()) return;
-    play(liquidFrames(from, index), 520 + 70 * (Math.abs(index - from) - 1));
+    play(liquidFrames(from, index), 300 + 45 * (Math.abs(index - from) - 1));
   }, [index]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- press and slide ----
@@ -121,7 +123,7 @@ export default function TabBar({ tabs, current, onSelect, badges = {} }) {
         const sx = 1.08 + (1 - 1.08) * k, sy = 1.06 + (1 - 1.06) * k;
         frames.push({ transform: `translateX(${px.toFixed(2)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`, offset: t });
       }
-      play(frames, 420);
+      play(frames, 280);
     } else setMoving(false);
     const target = tabs[d.slot];
     if (target.id !== current) { skipNext.current = true; haptic('select'); onSelect(target.id); }

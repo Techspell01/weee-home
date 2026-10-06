@@ -5,44 +5,31 @@ import sharp from 'sharp';
 import { writeFile } from 'node:fs/promises';
 
 function icon({ rounded, scale }) {
-  const s = scale; // lens size relative to the canvas (smaller for maskable safe zone)
-  const r = 176 * s;
-  const w = 26 * s;
+  // The start-screen logo: a glass lens, a crisp rainbow ring and a white W on near-black.
+  const r = 182 * scale;           // ring radius on a 512 canvas
+  const k = r / 78;                // the start screen draws it at r = 78 on a 200 canvas
+  const p = (x, y) => `${(256 + x * k).toFixed(1)} ${(256 + y * k).toFixed(1)}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#232327"/><stop offset="1" stop-color="#0A0A0B"/>
-    </linearGradient>
-    <radialGradient id="sheen" cx="0.5" cy="0" r="0.9">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="lens" cx="0.5" cy="0.18" r="0.85">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.05"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.02"/>
-    </radialGradient>
     <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#ff6060"/><stop offset="0.25" stop-color="#ffd65a"/>
       <stop offset="0.5" stop-color="#60ffaa"/><stop offset="0.75" stop-color="#5ab4ff"/><stop offset="1" stop-color="#c478ff"/>
     </linearGradient>
-    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${2.2 * s}"/></filter>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${18 * s}"/></filter>
+    <radialGradient id="lens" cx="0.5" cy="0.15" r="0.9">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.22"/><stop offset="0.6" stop-color="#fff" stop-opacity="0.04"/><stop offset="1" stop-color="#fff" stop-opacity="0.02"/>
+    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="${rounded ? 112 : 0}" fill="url(#bg)"/>
-  <rect width="512" height="512" rx="${rounded ? 112 : 0}" fill="url(#sheen)"/>
-  <circle cx="256" cy="${256 + 14 * s}" r="${r}" fill="#000" opacity="0.55" filter="url(#shadow)"/>
+  <rect width="512" height="512" rx="${rounded ? 112 : 0}" fill="#0A0A0B"/>
   <circle cx="256" cy="256" r="${r}" fill="url(#lens)"/>
-  <circle cx="256" cy="256" r="${r - 2 * s}" fill="none" stroke="url(#rim)" stroke-width="${5 * s}" opacity="0.75" filter="url(#soft)"/>
-  <circle cx="256" cy="256" r="${r}" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="${2 * s}"/>
-  <ellipse cx="256" cy="${256 - r * 0.74}" rx="${r * 0.46}" ry="${r * 0.1}" fill="#ffffff" opacity="0.09" filter="url(#soft)"/>
-  <path d="M ${256 - 92 * s} ${256 - 58 * s} L ${256 - 50 * s} ${256 + 66 * s} L 256 ${256 - 14 * s} L ${256 + 50 * s} ${256 + 66 * s} L ${256 + 92 * s} ${256 - 58 * s}"
-    fill="none" stroke="#F4F4F5" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="${r - 1.5 * k}" fill="none" stroke="url(#rim)" stroke-width="${3 * k}"/>
+  <path d="M ${p(-40, -24)} L ${p(-22, 28)} L ${p(0, -8)} L ${p(22, 28)} L ${p(40, -24)}"
+    fill="none" stroke="#F4F4F5" stroke-width="${12 * k}" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 }
 
 const full = icon({ rounded: true, scale: 1 });
 const square = icon({ rounded: false, scale: 1 });     // iOS rounds the corners itself
-const maskable = icon({ rounded: false, scale: 0.78 }); // Android crops to a circle/squircle
+const maskable = icon({ rounded: false, scale: 0.86 }); // Android crops to a circle/squircle
 
 await writeFile('public/favicon.svg', full);
 for (const [file, svg, size] of [
