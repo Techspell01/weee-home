@@ -1,14 +1,22 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ConfirmButton, Icon, Sheet } from './ui.jsx';
 import { EMOJI_IDEAS, MAX_CUSTOM, NOTES, NOTE_KINDS, TEXT_IDEAS, noteFor, sentCounts } from '../lib/notes.js';
 import { haptic } from '../lib/haptics.js';
 import { ago } from '../lib/time.js';
 
 // One-tap love notes on the home screen: the four built-in ones, your own
-// ("Baby 🥰"), and how many times you've sent each one.
+// ("Baby 🥰"), and how many times you've sent each one. Edit (or hold a note)
+// to remove notes; built-in ones are only hidden and can come back.
 export default function LoveNotes({ hh, actions, notify, nameOf, me, now }) {
   const [pop, setPop] = useState({});
-  const [editing, setEditing] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [arranging, setArranging] = useState(false); // edit mode: wiggle, ✕ to remove
+  const [armed, setArmed] = useState(null);          // a custom note waiting for a second tap
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(null), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
   const [draft, setDraft] = useState({ emoji: EMOJI_IDEAS[0], text: '' });
   const [saving, setSaving] = useState(false);
   const press = useRef({ timer: 0, long: false });
@@ -19,33 +27,51 @@ export default function LoveNotes({ hh, actions, notify, nameOf, me, now }) {
   const counts = sentCounts(hh.counts, me);
   const mine = hh.loveNotes.filter(n => n.created_by === me);
   const full = mine.length >= MAX_CUSTOM;
+  const hidden = hh.members.find(m => m.user_id === me)?.hidden_notes || [];
   const tiles = [
-    ...NOTE_KINDS.map(k => ({ key: k, kind: k, emoji: NOTES[k].emoji, label: NOTES[k].label, sent: NOTES[k].sent })),
+    ...NOTE_KINDS.filter(k => !hidden.includes(k)).map(k => ({ key: k, kind: k, emoji: NOTES[k].emoji, label: NOTES[k].label, sent: NOTES[k].sent })),
     ...mine.map(n => ({ key: `custom:${n.id}`, kind: 'custom', id: n.id, emoji: n.emoji, label: n.text, sent: `"${n.text}" sent ${n.emoji}` })),
   ];
   const times = n => `${n} ${n === 1 ? 'time' : 'times'}`;
 
-  async function send(t) {
+  async function tap(t) {
     if (press.current.long) { press.current.long = false; return; } // that was a hold, not a tap
+    if (arranging) { remove(t); return; }
     if (await actions.sendNudge(t.kind, t.id || null)) {
       setPop(p => ({ ...p, [t.key]: (p[t.key] || 0) + 1 }));
       notify(t.sent);
     }
   }
 
-  // Hold one of your own notes to manage them.
+  // Edit mode: built-in notes hide (and can come back); your own need a second tap to delete.
+  async function remove(t) {
+    if (!t.id) {
+      haptic('select');
+      if (await actions.setHiddenNotes([...hidden, t.kind])) notify(`"${t.label}" hidden. Tap + in Edit to bring it back.`);
+      return;
+    }
+    if (armed !== t.key) { setArmed(t.key); haptic('warn'); return; }
+    setArmed(null);
+    if (await actions.removeLoveNote({ id: t.id })) notify(`"${t.label}" deleted`);
+  }
+  async function restore(kind) {
+    haptic('select');
+    await actions.setHiddenNotes(hidden.filter(k => k !== kind));
+  }
+
+  // Hold any note to start editing, like the home screen of a phone.
   const stopHold = () => clearTimeout(press.current.timer);
-  const holdProps = t => (t.id ? {
+  const holdProps = {
     onPointerDown: () => {
       press.current.long = false;
       stopHold();
-      press.current.timer = setTimeout(() => { press.current.long = true; haptic('select'); setEditing(true); }, 550);
+      if (!arranging) press.current.timer = setTimeout(() => { press.current.long = true; haptic('select'); setArranging(true); }, 550);
     },
     onPointerUp: stopHold,
     onPointerLeave: stopHold,
     onPointerCancel: stopHold,
     onContextMenu: e => e.preventDefault(),
-  } : {});
+  };
 
   async function save(e) {
     e.preventDefault();
@@ -62,24 +88,37 @@ export default function LoveNotes({ hh, actions, notify, nameOf, me, now }) {
 
   return (
     <>
-      <div className="notes-card">
+      <div className={`notes-card${arranging ? ' arranging' : ''}`}>
         <div className="notes-head">
-          <span className="notes-title">{sendTo ? `Send to ${sendTo}` : 'Love notes'}</span>
-          {lastGot
-            ? <span className="notes-got">{noteFor(lastGot).emoji} from {nameOf(lastGot.from_user)} · {ago(lastGot.created_at, now)}</span>
+          <span className="notes-title">{arranging ? 'Edit your notes' : sendTo ? `Send to ${sendTo}` : 'Love notes'}</span>
+          {arranging ? <span className="notes-got">Tap ✕ to remove</span>
+            : lastGot ? <span className="notes-got">{noteFor(lastGot).emoji} from {nameOf(lastGot.from_user)} · {ago(lastGot.created_at, now)}</span>
             : !sendTo && <span className="notes-got">Invite your partner from Settings</span>}
+          <button type="button" className={`notes-edit${arranging ? ' on' : ''}`} onClick={() => { setArranging(a => !a); setArmed(null); }}>
+            {arranging ? 'Done' : 'Edit'}
+          </button>
         </div>
         <div className="notes-grid">
-          {tiles.map(t => (
-            <button key={`${t.key}-${pop[t.key] || 0}`} type="button" className={`note-btn note-${t.kind}${pop[t.key] ? ' sent' : ''}`}
-              onClick={() => send(t)} {...holdProps(t)}
-              aria-label={`Send ${t.label}${counts[t.key] ? `, sent ${times(counts[t.key])}` : ''}`}>
+          {tiles.map((t, i) => (
+            <button key={`${t.key}-${pop[t.key] || 0}`} type="button" style={{ '--i': i }}
+              className={`note-btn note-${t.kind}${pop[t.key] ? ' sent' : ''}${armed === t.key ? ' armed' : ''}`}
+              onClick={() => tap(t)} {...holdProps}
+              aria-label={arranging ? `Remove ${t.label}` : `Send ${t.label}${counts[t.key] ? `, sent ${times(counts[t.key])}` : ''}`}>
+              {arranging && <span className="note-x" aria-hidden="true"><Icon.x /></span>}
               <span className="note-emoji" aria-hidden="true">{t.emoji}</span>
-              <span className="note-label">{t.label}</span>
+              <span className="note-label">{armed === t.key ? 'Tap again to delete' : t.label}</span>
               <span className="note-count" aria-hidden="true">{counts[t.key] ? `${counts[t.key].toLocaleString('en-IN')} sent` : ''}</span>
             </button>
           ))}
-          <button type="button" className="note-btn note-add" onClick={() => setEditing(true)} aria-label="Add your own note">
+          {arranging && hidden.map(k => (
+            <button key={`hidden-${k}`} type="button" className="note-btn note-hidden" onClick={() => restore(k)} aria-label={`Bring back ${NOTES[k].label}`}>
+              <span className="note-plus" aria-hidden="true"><Icon.plus /></span>
+              <span className="note-emoji" aria-hidden="true">{NOTES[k].emoji}</span>
+              <span className="note-label">{NOTES[k].label}</span>
+              <span className="note-count">hidden</span>
+            </button>
+          ))}
+          <button type="button" className="note-btn note-add" onClick={() => { setArranging(false); setSheetOpen(true); }} aria-label="Add your own note">
             <span className="note-emoji" aria-hidden="true"><Icon.plus /></span>
             <span className="note-label">Your own</span>
             <span className="note-count" />
@@ -87,7 +126,7 @@ export default function LoveNotes({ hh, actions, notify, nameOf, me, now }) {
         </div>
       </div>
 
-      <Sheet open={editing} title="Your love notes" onClose={() => setEditing(false)}>
+      <Sheet open={sheetOpen} title="Your love notes" onClose={() => setSheetOpen(false)}>
         <form className="sheet-form" onSubmit={save} autoComplete="off">
           <div className="note-preview" aria-hidden="true">
             <span className="note-preview-emoji">{draft.emoji.trim() || '💌'}</span>
@@ -111,7 +150,7 @@ export default function LoveNotes({ hh, actions, notify, nameOf, me, now }) {
           <button className="btn" disabled={saving || full || !draft.text.trim()}>
             {full ? `You have ${MAX_CUSTOM}. Remove one to add another` : saving ? 'Adding…' : 'Add note'}
           </button>
-          <p className="meta">Only the two of you can see these. When you send one, {sendTo || 'your partner'} gets a notification with your words. Hold one of your notes on the home screen to come back here.</p>
+          <p className="meta">Only the two of you can see these. When you send one, {sendTo || 'your partner'} gets a notification with your words. To remove a note, tap Edit on the card.</p>
         </form>
 
         {mine.length > 0 && <>

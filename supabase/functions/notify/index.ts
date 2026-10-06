@@ -102,24 +102,30 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
     };
   }
   if (table === 'game_event') {
-    const NAMES: Record<string, string> = { tictactoe: 'Tic Tac Toe', connect4: 'Four in a Row', rps: 'Rock Paper Scissors', thisorthat: 'This or That' };
+    const NAMES: Record<string, string> = {
+      tictactoe: 'Tic Tac Toe', connect4: 'Four in a Row', rps: 'Rock Paper Scissors', thisorthat: 'This or That',
+      mostlikely: "Who's More Likely To", knowme: 'How Well Do You Know Me', truthordare: 'Truth or Dare', memory: 'Memory Match',
+    };
     const name = NAMES[r.kind] ?? 'a game';
     const who = await displayName(r.household_id, r.from_user);
-    const turns = r.kind === 'tictactoe' || r.kind === 'connect4';
+    const turns = ['tictactoe', 'connect4', 'truthordare', 'memory'].includes(r.kind);
+    const quiz = ['thisorthat', 'mostlikely', 'knowme'].includes(r.kind);
     let title = `Your move · ${name}`;
     let body = `${who} just played.`;
     if (r.event === 'challenge') {
       title = `🎮 ${who} challenged you`;
-      body = r.kind === 'thisorthat' ? `${name} · ${r.total || 10} questions about you two` : `${name} · ${turns ? 'you go first' : 'tap to play'}`;
+      body = quiz ? `${name} · ${r.total || 10} questions about you two` : `${name} · ${turns ? 'you go first' : 'tap to play'}`;
     } else if (r.event === 'picked') {
       body = `${who} has picked. Your turn.`;
     } else if (r.event === 'round') {
-      title = r.kind === 'thisorthat' ? `${name} · question ${r.round}` : `${name} · round ${r.round}`;
-      body = r.kind === 'thisorthat' ? `${who} answered. See if you matched.` : `See what ${who} picked, then pick again.`;
+      title = quiz ? `${name} · question ${r.round}` : `${name} · round ${r.round}`;
+      body = quiz ? `${who} answered. See what you both said.` : `See what ${who} picked, then pick again.`;
     } else if (r.event === 'finished') {
       body = 'Tap for a rematch';
       if (r.ended_by && r.ended_by === r.from_user) title = `${who} ended ${name}`;
       else if (r.kind === 'thisorthat') title = `💞 You matched ${r.matches ?? 0} of ${r.total || 10}`;
+      else if (r.kind === 'mostlikely') title = `😂 You agreed on ${r.matches ?? 0} of ${r.total || 10}`;
+      else if (r.kind === 'knowme') title = `🧠 ${name}: see who knows who better`;
       else if (r.winner === r.to_user) title = `🏆 You won ${name}!`;
       else if (r.winner === r.from_user) title = `${who} won ${name}`;
       else title = `${name}: it's a draw`;

@@ -12,8 +12,8 @@
 | **Profile photos** | Add a photo in Settings. It shows on the Plans card, beside your messages in Chat and on the "thinking of you" heart. Photos are cropped to a square, stored in a private bucket and only visible to people in your household. |
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
 | **Countdowns** | Big-number tiles on Discover ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
-| **Love notes** | One tap on the home screen sends 💗 Thinking of you, ❤️ I love you, 🥺 I miss you or 📍 Where are you? (the heart is also in the chat box). Your partner gets a notification with a heartbeat vibration, or a full-screen moment if Weee is open, with "Love you too" / "Miss you too". "Where are you?" offers quick answers (On my way, At home, At work…) or a one-off map link of where they are right now, sent into the chat. Tap **+** to add your own notes (a nickname, "Good night 🌙", up to 8 each, only visible to the two of you), and each button shows how many times you've sent it. |
-| **Games** | Play together, live: **Tic Tac Toe**, **Four in a Row** (with falling discs), **Rock Paper Scissors** (first to three; each pick stays hidden until you have both picked) and **This or That** (ten questions about you two; see how often you match). A scoreboard of wins, who is online right now, "your move" badges, a banner or push notification when it is your turn (skipped while you are already looking at the board), confetti for a win and one-tap rematches. |
+| **Love notes** | One tap on the home screen sends 💗 Thinking of you, ❤️ I love you, 🥺 I miss you or 📍 Where are you? (the heart is also in the chat box). Your partner gets a notification with a heartbeat vibration, or a full-screen moment if Weee is open, with "Love you too" / "Miss you too". "Where are you?" offers quick answers (On my way, At home, At work…) or a one-off map link of where they are right now, sent into the chat. Tap **+** to add your own notes (a nickname, "Good night 🌙", up to 8 each, only visible to the two of you), and each button shows how many times you've sent it. Tap **Edit** (or hold a note) to remove notes: your own are deleted, built-in ones are hidden and can be brought back. |
+| **Games** | Eight games, played live. To win: **Tic Tac Toe**, **Four in a Row** (falling discs), **Memory Match** (love-themed cards, a pair means you go again) and **Rock Paper Scissors** (first to ten; picks stay hidden until you have both picked). Just for the two of you: **This or That**, **Who's More Likely To** (both secretly point at one of you), **How Well Do You Know Me** (one answers about themselves, the other guesses) and **Truth or Dare** (sweet and silly prompts). A row of tease emojis (😂 😭 😜 …) pops up big on the other phone. Scoreboard, presence, "your move" badges, push notifications for your turn (skipped while you are already looking), confetti and rematches. Clear finished games from your own Recent list without touching your partner's. |
 | **Chat** | A private chat with "typing…", sent/delivered/seen ticks, double-tap ❤️ and emoji reactions, swipe-to-reply with quotes, pinned messages, tappable links (map links show as "Open in Maps"), delete for me / unsend / clear chat, and push notifications. |
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
 | **Money** | Monthly spending by category (groceries, outings, rent, bills, travel…), equal splits, "who owes whom", and settle-up. |
@@ -80,7 +80,7 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | Table | What it holds |
 |---|---|
 | `households` | name, a unique 6-character invite code and the date you got together |
-| `household_members` | who belongs to which household, with display names and profile photo path |
+| `household_members` | who belongs to which household, with display names, profile photo path, hidden love notes and which game is open |
 | `items` | shopping list: need/bought, urgent, who added and who bought |
 | `pantry` | one row per product: last bought, how long it lasts, recent purchase times |
 | `plans` | title, type, date, start/end time, place, notes; `owner` set means that person's own schedule |
@@ -91,7 +91,7 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `love_notes` | each person's own notes: emoji and text, up to 8 each |
 | `note_counts` | how many times each person has sent each note, kept up to date by a trigger |
 | `message_reactions` | one emoji reaction per person per message |
-| `games` | one row per game: kind, the two players, whose turn, the board or rounds as JSON, status and winner; only the player whose turn it is can change a board |
+| `games` | one row per game: kind, the two players, whose turn, the board or rounds as JSON, status, winner, and who has cleared it from their Recent list; only the player whose turn it is can change a board |
 | `game_picks` | hidden picks for Rock Paper Scissors and This or That; each person sees only their own, and a trigger reveals the round once both have picked |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |
 
@@ -108,4 +108,4 @@ npm run deploy            # runs the tests, then deploys to Vercel production
 ## Roadmap
 
 - Android app with Capacitor (`npx cap add android`) and native haptics and push
-- More games (Dots and Boxes, a daily couples quiz)
+- More games (Dots and Boxes, a daily couples question)

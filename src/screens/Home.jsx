@@ -109,6 +109,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
       }
       if (key === 'games' || key === 'games:update') {
         if (gameNav.watching === row.id) return; // the board is open: it updates live
+        if (key === 'games:update' && Date.now() - Date.parse(row.updated_at) > 30000) return; // not a new move (e.g. cleared from Recent)
         const name = GAMES[row.kind]?.name || 'a game';
         const who = nameFrom(members, key === 'games' ? row.created_by : row.last_actor);
         let title;

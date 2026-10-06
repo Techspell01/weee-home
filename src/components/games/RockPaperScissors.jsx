@@ -15,7 +15,7 @@ export default function RockPaperScissors({ g, me, partnerName, actions, myPicks
     <div className="rps">
       <div className="rps-score">
         <b className="me">{score[me] || 0}</b>
-        <span>first to {g.state?.target || 3}</span>
+        <span>first to {g.state?.target || 10}</span>
         <b className="them">{score[other] || 0}</b>
       </div>
 

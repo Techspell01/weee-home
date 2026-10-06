@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Avatar } from '../components/ui.jsx';
-import { GAMES, GAME_ORDER, gameStatus, opponentOf, scoreboard } from '../lib/games.js';
+import { Avatar, ConfirmButton, Icon } from '../components/ui.jsx';
+import { GAMES, GAME_ORDER, gameStatus, knowScores, opponentOf, scoreboard } from '../lib/games.js';
 import { ago } from '../lib/time.js';
 import { GameArt, gameNav } from '../components/games/GameBits.jsx';
 import GameView from '../components/games/GameView.jsx';
@@ -32,7 +32,8 @@ export default function GamesTab({ hh, actions, notify, nameOf, me, now, avatars
   const active = mine.filter(g => g.status === 'active');
   const activeOf = kind => active.find(g => g.kind === kind);
   const board = scoreboard(mine, me);
-  const recent = mine.filter(g => g.status === 'done').slice(0, 5);
+  const finished = mine.filter(g => g.status === 'done' && !(g.hidden_by || []).includes(me));
+  const recent = finished.slice(0, 8);
 
   const game = openId && (hh.games.find(g => g.id === openId) || (fresh?.id === openId ? fresh : null));
 
@@ -61,7 +62,14 @@ export default function GamesTab({ hh, actions, notify, nameOf, me, now, avatars
     return s === 'your-move' ? <span className="g-chip mine">Your move</span> : <span className="g-chip">{partnerName}'s move</span>;
   };
   const resultLine = g => {
-    if (g.kind === 'thisorthat') return `Matched ${g.state?.matches || 0} of ${(g.state?.questions || []).length || 10}`;
+    const total = (g.state?.questions || []).length || 10;
+    if (g.kind === 'thisorthat') return `Matched ${g.state?.matches || 0} of ${total}`;
+    if (g.kind === 'mostlikely') return `Agreed on ${g.state?.matches || 0} of ${total}`;
+    if (g.kind === 'knowme') {
+      const k = knowScores(g);
+      return k[me] > k[opponentOf(g, me)] ? `You knew ${partnerName} better` : k[me] < k[opponentOf(g, me)] ? `${partnerName} knew you better` : 'You know each other equally';
+    }
+    if (g.kind === 'truthordare') return `${(g.state?.log || []).filter(l => l.done).length} truths and dares done`;
     if (g.state?.ended_by) return g.state.ended_by === me ? 'You ended it' : `${partnerName} ended it`;
     if (!g.winner) return 'Draw';
     return g.winner === me ? 'You won' : `${partnerName} won`;
@@ -112,39 +120,50 @@ export default function GamesTab({ hh, actions, notify, nameOf, me, now, avatars
       </>}
 
       {/* ---- the games ---- */}
-      <div className="label">Play together</div>
-      <div className="games-grid">
-        {GAME_ORDER.map(kind => {
-          const g = activeOf(kind);
-          return (
-            <button key={kind} type="button" className={`game-tile g-${kind}`} onClick={() => play(kind)} disabled={starting === kind}>
-              <GameArt kind={kind} />
-              <div className="game-tile-text">
-                <div className="tile-title">{GAMES[kind].name}</div>
-                <div className="tile-sub">{GAMES[kind].blurb}</div>
-              </div>
-              {g ? (gameStatus(g, me) === 'your-move' ? <span className="g-chip mine">Your move</span> : <span className="g-chip">Waiting</span>)
-                : <span className="g-chip play">{starting === kind ? 'Starting…' : 'Play'}</span>}
-            </button>
-          );
-        })}
-      </div>
+      {[['play', 'Play together'], ['us', 'Just for you two']].map(([group, title]) => (
+        <div key={group}>
+          <div className="label">{title}</div>
+          <div className="games-grid">
+            {GAME_ORDER.filter(kind => GAMES[kind].group === group).map(kind => {
+              const g = activeOf(kind);
+              return (
+                <button key={kind} type="button" className={`game-tile g-${kind}`} onClick={() => play(kind)} disabled={starting === kind}>
+                  <GameArt kind={kind} />
+                  <div className="game-tile-text">
+                    <div className="tile-title">{GAMES[kind].name}</div>
+                    <div className="tile-sub">{GAMES[kind].blurb}</div>
+                  </div>
+                  {g ? (gameStatus(g, me) === 'your-move' ? <span className="g-chip mine">Your move</span> : <span className="g-chip">Waiting</span>)
+                    : <span className="g-chip play">{starting === kind ? 'Starting…' : 'Play'}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       {/* ---- recent ---- */}
       {recent.length > 0 && <>
-        <div className="label">Recent</div>
+        <div className="label">Recent
+          <ConfirmButton className="btn ghost small push" label="Clear recent games" confirmLabel="Clear all?"
+            onConfirm={async () => { if (await actions.hideGames(finished.map(g => g.id))) notify('Recent cleared. The scoreboard keeps counting.'); }}>Clear</ConfirmButton>
+        </div>
         <div className="list">
           {recent.map(g => (
-            <button key={g.id} type="button" className="row game-row past" onClick={() => setOpenId(g.id)}>
-              <GameArt kind={g.kind} small />
-              <div className="main">
-                <div className="name">{resultLine(g)}</div>
-                <div className="meta">{GAMES[g.kind].name} · {ago(g.updated_at, now)}</div>
-              </div>
-              {g.winner === me && <span className="g-trophy" aria-label="You won">🏆</span>}
-            </button>
+            <div key={g.id} className="row game-row past">
+              <button type="button" className="game-row-open" onClick={() => setOpenId(g.id)}>
+                <GameArt kind={g.kind} small />
+                <div className="main">
+                  <div className="name">{resultLine(g)}</div>
+                  <div className="meta">{GAMES[g.kind].name} · {ago(g.updated_at, now)}</div>
+                </div>
+                {g.winner === me && <span className="g-trophy" aria-label="You won">🏆</span>}
+              </button>
+              <ConfirmButton label={`Remove ${GAMES[g.kind].name} from Recent`} confirmLabel="Remove?" onConfirm={() => actions.hideGames([g.id])}><Icon.x /></ConfirmButton>
+            </div>
           ))}
         </div>
+        <p className="hint">Removing a game only clears it from your list. {partnerName} still sees it, and the scoreboard keeps counting.</p>
       </>}
     </section>
   );

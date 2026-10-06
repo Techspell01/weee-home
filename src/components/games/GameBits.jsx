@@ -32,6 +32,26 @@ export function GameArt({ kind, small = false }) {
     );
   }
   if (kind === 'rps') return <span className={cls} aria-hidden="true"><i>✊</i><i>✋</i><i>✌️</i></span>;
+  if (kind === 'memory') {
+    return (
+      <span className={cls} aria-hidden="true">
+        <span className="mini-card back" /><span className="mini-card face">🌹</span>
+      </span>
+    );
+  }
+  if (kind === 'mostlikely') {
+    return (
+      <span className={cls} aria-hidden="true">
+        <svg viewBox="0 0 60 60">
+          <circle cx="21" cy="30" r="15" fill="var(--me)" fillOpacity=".9" />
+          <circle cx="39" cy="30" r="15" fill="var(--them)" fillOpacity=".9" />
+          <text x="30" y="37" textAnchor="middle" fontSize="20" fontWeight="800" fill="#0A0A0B">?</text>
+        </svg>
+      </span>
+    );
+  }
+  if (kind === 'knowme') return <span className={cls} aria-hidden="true"><i>🧠</i><i>💞</i></span>;
+  if (kind === 'truthordare') return <span className={cls} aria-hidden="true"><b>Truth</b><em>or</em><b>Dare</b></span>;
   return <span className={cls} aria-hidden="true"><b>This</b><em>or</em><b>That</b></span>;
 }
 

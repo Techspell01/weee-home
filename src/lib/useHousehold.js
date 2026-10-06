@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 // Everything a household shares. Each table is fetched once, then refetched
 // whenever Supabase Realtime reports a change, so every phone stays in sync.
 const TABLES = {
-  members: { table: 'household_members', select: 'user_id, display_name, joined_at, last_seen, chat_read_at, chat_cleared_at, avatar_path', order: 'joined_at' },
+  members: { table: 'household_members', select: 'user_id, display_name, joined_at, last_seen, chat_read_at, chat_cleared_at, avatar_path, hidden_notes', order: 'joined_at' },
   items: { table: 'items', select: '*', order: 'added_at' },
   pantry: { table: 'pantry', select: '*', order: 'name' },
   expenses: { table: 'expenses', select: '*', order: 'created_at' },
@@ -102,6 +102,10 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
       channel = ch;
       channelRef.current = ch;
       ch.on('presence', { event: 'sync' }, () => setOnline(Object.keys(ch.presenceState())));
+      // A tease emoji from the other player (games); shown by whichever screen cares.
+      ch.on('broadcast', { event: 'emote' }, ({ payload }) => {
+        if (payload?.user && payload.user !== me) window.dispatchEvent(new CustomEvent('weee:emote', { detail: payload }));
+      });
       ch.on('broadcast', { event: 'typing' }, ({ payload }) => {
         if (payload?.user && payload.user !== me) setTyping(t => ({ ...t, [payload.user]: Date.now() }));
       });
@@ -192,5 +196,10 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
     channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { user: me } });
   }, [me]);
 
-  return { ...data, online, typing, sendTyping, loaded, status, refresh, patch, drop, add };
+  // Send a tease emoji to the other player in a game (live only, nothing is stored).
+  const sendEmote = useCallback((game, emoji) => {
+    channelRef.current?.send({ type: 'broadcast', event: 'emote', payload: { user: me, game, emoji } });
+  }, [me]);
+
+  return { ...data, online, typing, sendTyping, sendEmote, loaded, status, refresh, patch, drop, add };
 }

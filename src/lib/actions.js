@@ -121,6 +121,11 @@ export function makeActions({ householdId, me, hh, notify }) {
       if (ok) haptic('success');
       return ok;
     },
+    // Hide or bring back the built-in notes (Thinking of you, I love you…) on your own card.
+    setHiddenNotes(kinds) {
+      return run(supabase.from('household_members').update({ hidden_notes: kinds })
+        .eq('household_id', householdId).eq('user_id', me), 'members');
+    },
     removeLoveNote(note) {
       hh.drop('loveNotes', r => r.id === note.id);
       return run(supabase.from('love_notes').delete().eq('id', note.id), 'loveNotes');
@@ -165,6 +170,14 @@ export function makeActions({ householdId, me, hh, notify }) {
       hh.refresh('picks');
       if (ok) haptic('select');
       return ok;
+    },
+    // Clear finished games from your own Recent list (your partner still sees them).
+    hideGames(ids) {
+      for (const id of ids) {
+        const g = hh.games.find(x => x.id === id);
+        if (g) hh.patch('games', id, { hidden_by: [...(g.hidden_by || []), me] });
+      }
+      return run(supabase.rpc('hide_games', { p_games: ids }), 'games');
     },
     endGame(g) {
       return run(supabase.rpc('end_game', { p_game: g.id }), 'games');
