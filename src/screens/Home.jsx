@@ -7,12 +7,13 @@ import TabBar from '../components/TabBar.jsx';
 import { isSubscribed, resyncPush } from '../lib/push.js';
 import { haptic } from '../lib/haptics.js';
 import { playSound } from '../lib/sounds.js';
-import { dueState } from '../lib/tracker.js';
+import { GAMES, gameStatus } from '../lib/games.js';
+import { gameNav } from '../components/games/GameBits.jsx';
 import { visibleMessages } from '../lib/chat.js';
 import { useAvatarUrls } from '../lib/avatars.js';
 import { noteOf } from '../lib/notes.js';
 import PlansTab from './PlansTab.jsx';
-import TrackerTab from './TrackerTab.jsx';
+import GamesTab from './GamesTab.jsx';
 import DiscoverTab from './DiscoverTab.jsx';
 import ListTab from './ListTab.jsx';
 import MoneyTab from './MoneyTab.jsx';
@@ -21,12 +22,12 @@ import Settings from './Settings.jsx';
 
 const TABS = [
   { id: 'plans', label: 'Plans', icon: Icon.calendar },
-  { id: 'tracker', label: 'Tracker', icon: Icon.tracker },
+  { id: 'games', label: 'Games', icon: Icon.game },
   { id: 'discover', label: 'Discover', icon: Icon.discover },
 ];
 const ORDER = TABS.map(t => t.id);
 const SUBS = ['list', 'money', 'chat'];   // pages inside Discover
-const TITLES = { plans: 'Plans', tracker: 'Tracker', discover: 'Discover', settings: 'Settings', list: 'Shopping', money: 'Money', chat: 'Chat' };
+const TITLES = { plans: 'Plans', games: 'Games', discover: 'Discover', settings: 'Settings', list: 'Shopping', money: 'Money', chat: 'Chat' };
 
 // Where to open: a notification link (?tab=chat) first, then where you left off.
 function readStart() {
@@ -85,7 +86,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
   };
 
   // Realtime callbacks fire later, so they read the latest state from a ref.
-  const latest = useRef({ members: [], trackers: [], inChat: false, pushOn: false });
+  const latest = useRef({ members: [], tab: 'plans', inChat: false, pushOn: false });
   // Is this phone getting push notifications? Then the system notification
   // already makes a sound, so the app doesn't play a second one.
   const [pushOn, setPushOn] = useState(false);
@@ -106,6 +107,25 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
         setHeart({ from: nameFrom(members, row.from_user), userId: row.from_user, key: row.id, kind: row.kind || 'heart', text: row.text, emoji: row.emoji });
         return;
       }
+      if (key === 'games' || key === 'games:update') {
+        if (gameNav.watching === row.id) return; // the board is open: it updates live
+        const name = GAMES[row.kind]?.name || 'a game';
+        const who = nameFrom(members, key === 'games' ? row.created_by : row.last_actor);
+        let title;
+        let body = 'Tap to play';
+        if (key === 'games') { title = `${who} challenged you 🎮`; body = `${name} · tap to play`; }
+        else if (row.status === 'done') {
+          title = row.kind === 'thisorthat' ? `This or That: you matched ${row.state?.matches || 0} 💞`
+            : row.state?.ended_by ? `${who} ended ${name}`
+            : !row.winner ? `${name}: it's a draw` : row.winner === me ? `🏆 You won ${name}!` : `${who} won ${name}`;
+          body = 'Tap for a rematch';
+        } else if (gameStatus(row, me) === 'your-move') { title = `Your move · ${name}`; body = `${who} played`; }
+        else return; // e.g. a round revealed while it's still their pick
+        if (!viaPush) playSound('soft');
+        haptic('notify');
+        showAlert({ kind: 'game', title, body, open: 'game', gameId: row.id });
+        return;
+      }
       if (key === 'messages') {
         if (inChat) { if (!viaPush) playSound('soft'); return; } // already looking at it
         if (!viaPush) playSound('chat');
@@ -123,35 +143,12 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
     },
   });
   const inChat = tab === 'discover' && sub === 'chat';
-  latest.current = { members: hh.members, trackers: hh.trackers, inChat, pushOn };
+  latest.current = { members: hh.members, tab, inChat, pushOn };
 
   const nameOf = id => nameFrom(hh.members, id);
   const avatars = useAvatarUrls(hh.members);
   const actions = makeActions({ householdId: household.id, me, hh, notify });
   const mine = hh.members.find(m => m.user_id === me);
-
-  // In-app reminder: when one of my follow-ups becomes due while Weee is open,
-  // show a banner and ring (the push notification covers the app being closed).
-  const alerted = useRef(new Set());
-  const openedAt = useRef(Date.now());
-  useEffect(() => {
-    const check = () => {
-      const t = Date.now();
-      for (const tr of latest.current.trackers) {
-        if (tr.owner !== me || tr.done || !tr.next_at) continue;
-        const at = Date.parse(tr.next_at);
-        const key = `${tr.id}:${tr.next_at}`;
-        if (at > t || at < openedAt.current - 60000 || alerted.current.has(key)) continue;
-        alerted.current.add(key);
-        if (!latest.current.pushOn) playSound('alarm');
-        haptic('notify');
-        showAlert({ kind: 'reminder', title: `Follow up: ${tr.title}`, body: tr.details || 'Time to follow up · tap to open', open: 'tracker' });
-      }
-    };
-    check();
-    const iv = setInterval(check, 15000);
-    return () => clearInterval(iv);
-  }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Opened from a heart notification: show the moment once the data is in.
   const fromHeartLink = useRef(new URLSearchParams(window.location.search).get('nudge') === '1');
@@ -184,7 +181,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
   const unread = visibleMessages(hh, me).filter(m => m.user_id !== me && Date.parse(m.created_at) > readAt).length;
   const badges = {
     plans: hh.plans.filter(p => !p.done && (!p.owner || p.owner === me) && ['missed', 'today'].includes(groupOf(p, now))).length,
-    tracker: hh.trackers.filter(t => t.owner === me && dueState(t, now) === 'overdue').length,
+    games: hh.games.filter(g => (g.created_by === me || g.opponent === me) && gameStatus(g, me) === 'your-move').length,
     discover: unread,
   };
   const partner = hh.members.find(m => m.user_id !== me);
@@ -193,7 +190,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
   const shared = { hh, actions, nameOf, notify, now, me, avatars };
   const page = tab === 'discover' && sub ? sub : tab;
   const showBack = tab === 'settings' || (tab === 'discover' && sub);
-  const showAdd = !['settings', 'discover', 'chat'].includes(page);
+  const showAdd = !['settings', 'discover', 'chat', 'games'].includes(page);
 
   return (
     <>
@@ -218,7 +215,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
 
         <div key={page} className={`page page-${motion}`}>
           {page === 'plans' && <PlansTab {...shared} household={household} />}
-          {page === 'tracker' && <TrackerTab {...shared} />}
+          {page === 'games' && <GamesTab {...shared} />}
           {page === 'discover' && <DiscoverTab {...shared} open={openSub} unread={unread} />}
           {page === 'list' && <ListTab {...shared} />}
           {page === 'money' && <MoneyTab {...shared} />}
@@ -239,7 +236,11 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
           const to = alert?.open;
           setAlert(null);
           if (to === 'chat') { if (tab !== 'discover') go('discover'); openSub('chat'); }
-          else if (to === 'tracker') go('tracker');
+          else if (to === 'game') {
+            gameNav.pending = alert.gameId;
+            if (tab !== 'games') go('games');
+            else window.dispatchEvent(new CustomEvent('weee:open-game', { detail: alert.gameId }));
+          }
         }} />
     </>
   );

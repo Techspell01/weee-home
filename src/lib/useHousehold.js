@@ -12,16 +12,16 @@ const TABLES = {
   // newest 300 messages, shown oldest first
   messages: { table: 'messages', select: '*', order: 'created_at', desc: true, limit: 300 },
   hides: { table: 'message_hides', select: 'message_id', order: 'message_id' }, // only my own (RLS)
-  // mine, plus ones my partner chose to share (RLS)
-  trackers: { table: 'trackers', select: '*', order: 'created_at' },
   countdowns: { table: 'countdowns', select: '*', order: 'date' },
   nudges: { table: 'nudges', select: '*', order: 'created_at', desc: true, limit: 50 },
   reactions: { table: 'message_reactions', select: 'message_id, user_id, emoji', order: 'created_at' },
   loveNotes: { table: 'love_notes', select: '*', order: 'created_at' },
   counts: { table: 'note_counts', select: 'user_id, note_key, sent, last_sent_at', order: 'note_key' },
+  games: { table: 'games', select: '*', order: 'created_at', desc: true, limit: 150 },
+  picks: { table: 'game_picks', select: 'game_id, round, pick', order: 'created_at', desc: true, limit: 60 }, // only my own (RLS)
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], trackers: [], countdowns: [], nudges: [], reactions: [], loveNotes: [], counts: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], countdowns: [], nudges: [], reactions: [], loveNotes: [], counts: [], games: [], picks: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item, a plan or a message.
 // `online` lists who has Weee open right now (Supabase Realtime presence).
@@ -77,10 +77,14 @@ export function useHousehold(householdId, me, { onRemoteInsert } = {}) {
         if (key === 'items' && row.added_by !== me) onRemoteInsertRef.current?.(key, row);
         if (key === 'plans' && row.created_by !== me) onRemoteInsertRef.current?.(key, row);
         if (key === 'nudges' && row.from_user !== me) onRemoteInsertRef.current?.(key, row);
+        if (key === 'games' && row.created_by !== me) onRemoteInsertRef.current?.(key, row);
         if (key === 'messages' && row.user_id !== me) {
           onRemoteInsertRef.current?.(key, row);
           setTyping(t => ({ ...t, [row.user_id]: 0 })); // they sent it, so they stopped typing
         }
+      }
+      if (payload.eventType === 'UPDATE' && key === 'games' && row.last_actor && row.last_actor !== me) {
+        onRemoteInsertRef.current?.('games:update', row);
       }
       schedule(key);
     };

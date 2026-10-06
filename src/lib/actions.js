@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import { guessCategory, guessDays, itemKey, parseList } from './groceries.js';
 import { haptic } from './haptics.js';
-import { nextRepeat } from './tracker.js';
+import { GAMES, initialState } from './games.js';
 import { squareJpeg } from './avatars.js';
 import { mapsLink } from './notes.js';
 
@@ -22,10 +22,6 @@ export function makeActions({ householdId, me, hh, notify }) {
     return !error;
   };
   const now = () => new Date().toISOString();
-  const updateTracker = (id, changes) => {
-    hh.patch('trackers', id, changes);
-    return run(supabase.from('trackers').update(changes).eq('id', id), 'trackers');
-  };
 
   const recordPurchase = (name, overrideDays = null) =>
     run(supabase.rpc('record_purchase', {
@@ -141,35 +137,44 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('countdowns').delete().eq('id', c.id), 'countdowns');
     },
 
-    // Follow-up tracker
-    async addTracker(row) {
-      const ok = await run(supabase.from('trackers').insert({ household_id: householdId, ...row }), 'trackers');
-      if (ok) haptic('success');
+    // Games
+    // Start a game against your partner; if one of this kind is already going, open that instead.
+    async startGame(kind, opponent) {
+      const row = { household_id: householdId, kind, opponent, turn: GAMES[kind].turns ? opponent : null, state: initialState(kind) };
+      const { data, error } = await supabase.from('games').insert(row).select().single();
+      hh.refresh('games');
+      if (!error) { haptic('success'); return data; }
+      if (error.code === '23505') {
+        const { data: existing } = await supabase.from('games').select('*')
+          .eq('household_id', householdId).eq('kind', kind).eq('status', 'active').maybeSingle();
+        if (existing) return existing;
+      }
+      notify(friendlyError(error));
+      return null;
+    },
+    // A move in Tic Tac Toe or Four in a Row (only allowed on your turn).
+    playMove(g, changes) {
+      hh.patch('games', g.id, { ...changes, last_actor: me });
+      return run(supabase.from('games').update(changes).eq('id', g.id), 'games');
+    },
+    // A hidden pick in Rock Paper Scissors or This or That.
+    async pick(g, value) {
+      hh.add('picks', { game_id: g.id, round: g.round, pick: value });
+      hh.patch('games', g.id, { state: { ...g.state, picked: [...(g.state?.picked || []), me] } });
+      const ok = await run(supabase.from('game_picks').insert({ game_id: g.id, household_id: householdId, round: g.round, pick: value }), 'games');
+      hh.refresh('picks');
+      if (ok) haptic('select');
       return ok;
     },
-    updateTracker,
-    async followedUp(t, note = '') {
-      const at = now();
-      const log = [{ at, note: note.trim().slice(0, 200) }, ...(Array.isArray(t.log) ? t.log : [])].slice(0, 20);
-      const changes = {
-        followups: (t.followups || 0) + 1,
-        last_followup_at: at,
-        log,
-        next_at: nextRepeat(t),
-        stage: t.kind === 'job' && (!t.stage || t.stage === 'applied') ? 'followed_up' : t.stage,
-      };
-      const ok = await updateTracker(t.id, changes);
-      if (ok) haptic('success');
-      return ok;
+    endGame(g) {
+      return run(supabase.rpc('end_game', { p_game: g.id }), 'games');
     },
-    snoozeTracker(t, at) {
-      return updateTracker(t.id, { next_at: at.toISOString() });
+    // Tell the database which game is open on this phone, so moves don't send a push you'd see anyway.
+    watchGame(gameId) {
+      return supabase.from('household_members')
+        .update({ watching_game: gameId, watching_at: gameId ? now() : null })
+        .eq('household_id', householdId).eq('user_id', me).then(() => {});
     },
-    removeTracker(t) {
-      hh.drop('trackers', r => r.id === t.id);
-      return run(supabase.from('trackers').delete().eq('id', t.id), 'trackers');
-    },
-
 
     // Chat
     async sendMessage(body, replyTo = null) {

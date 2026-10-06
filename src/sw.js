@@ -14,6 +14,7 @@ registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
 const VIBRATE = {
   chat: [80, 60, 80],
   reminder: [200, 100, 200, 100, 400],
+  game: [30, 60, 30, 60, 90],             // a playful double tap
   nudge: [70, 110, 70, 700, 70, 110, 70],   // a heartbeat
   countdown: [100, 60, 100, 60, 300],
   item: [100],

@@ -1,6 +1,6 @@
 # Weee
 
-**Your home, together.** Weee is a shared home app for couples (and roommates or families). Plans and daily schedules, a follow-up tracker with reminders (great for job applications), a live shopping list, chat and spending, all synced instantly between everyone in the household, with push notifications.
+**Your home, together.** Weee is a shared home app for couples (and roommates or families). Plans and daily schedules, love notes, games you play together, a live shopping list, chat and spending, all synced instantly between everyone in the household, with push notifications.
 
 **Live:** https://homelist-tan.vercel.app · install it from the browser with **Add to Home Screen**.
 
@@ -13,19 +13,19 @@
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
 | **Countdowns** | Big-number tiles on Discover ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
 | **Love notes** | One tap on the home screen sends 💗 Thinking of you, ❤️ I love you, 🥺 I miss you or 📍 Where are you? (the heart is also in the chat box). Your partner gets a notification with a heartbeat vibration, or a full-screen moment if Weee is open, with "Love you too" / "Miss you too". "Where are you?" offers quick answers (On my way, At home, At work…) or a one-off map link of where they are right now, sent into the chat. Tap **+** to add your own notes (a nickname, "Good night 🌙", up to 8 each, only visible to the two of you), and each button shows how many times you've sent it. |
-| **Tracker** | Things to follow up on, like job applications (Applied → Followed up → Interview → Offer / Rejected) or anything else. Set a reminder date and time, optionally repeating every few days; Weee sends a push notification at that time even when the app is closed. Log each follow-up with a note, snooze, archive. Private by default, or shared with your partner. |
+| **Games** | Play together, live: **Tic Tac Toe**, **Four in a Row** (with falling discs), **Rock Paper Scissors** (first to three; each pick stays hidden until you have both picked) and **This or That** (ten questions about you two; see how often you match). A scoreboard of wins, who is online right now, "your move" badges, a banner or push notification when it is your turn (skipped while you are already looking at the board), confetti for a win and one-tap rematches. |
 | **Chat** | A private chat with "typing…", sent/delivered/seen ticks, double-tap ❤️ and emoji reactions, swipe-to-reply with quotes, pinned messages, tappable links (map links show as "Open in Maps"), delete for me / unsend / clear chat, and push notifications. |
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
 | **Money** | Monthly spending by category (groceries, outings, rent, bills, travel…), equal splits, "who owes whom", and settle-up. |
-| **Push notifications** | "Priya added Milk", "Priya planned: Dinner at Toit", chat messages and follow-up reminders, even with the app closed (iPhone Home Screen app on iOS 16.4+, and Android). |
-| **Feels native** | An animated start screen (the glass lens forms, its rainbow rim draws in, then the W), a matte bento layout and an iOS liquid-glass tab bar (Plans · Tracker · Discover) whose lens stretches between tabs and can be dragged; Discover holds Shopping, Money and Chat. Sliding page transitions, haptic feedback, installable as an app. |
+| **Push notifications** | "Priya added Milk", "Priya planned: Dinner at Toit", chat messages, love notes and "your move" in games, even with the app closed (iPhone Home Screen app on iOS 16.4+, and Android). |
+| **Feels native** | An animated start screen (the glass lens forms, its rainbow rim draws in, then the W), a matte bento layout and an iOS liquid-glass tab bar (Plans · Games · Discover) whose lens stretches between tabs and can be dragged; Discover holds Shopping, Money and Chat. Sliding page transitions, haptic feedback, installable as an app. |
 | **Private by design** | Every row belongs to a household, and Postgres row-level security means only its members can read or change it. |
 
 ## Tech stack
 
 - **Frontend:** React 19 + Vite, installable PWA with a custom service worker (Workbox)
 - **Backend:** Supabase (Postgres, Auth, Realtime, Row Level Security, Edge Functions, Vault)
-- **Push:** Web Push (VAPID). Database triggers (new items, plans, messages) and a `pg_cron` job that checks due follow-ups every minute call the `notify` Edge Function through `pg_net`.
+- **Push:** Web Push (VAPID). Database triggers (new items, plans, messages, love notes, game moves) and a daily `pg_cron` job for countdowns call the `notify` Edge Function through `pg_net`.
 - **Hosting:** Vercel
 - **Tests:** Vitest for the core logic: list parsing, stock levels, splits, spending and plan dates. Runs on every push with GitHub Actions.
 
@@ -39,10 +39,10 @@ Phone A ──insert──▶ Postgres (RLS) ──realtime──▶ Phone B (up
 
 ```
 src/
-  screens/       Plans, List, Pantry, Money, Settings, sign-in and onboarding
-  components/    UI pieces (buttons, toasts, notification settings)
+  screens/       Plans, Games, Discover, Shopping, Money, Chat, Settings, sign-in
+  components/    UI pieces (love notes, countdowns, the games, tab bar, sheets)
   lib/           Supabase client, live household data hook, actions, and pure
-                 logic (groceries, plans, money) with tests
+                 logic (groceries, plans, money, love notes, game rules) with tests
   sw.js          Service worker: offline app shell + push notifications
 supabase/
   migrations/    Database schema, RLS policies, functions, triggers
@@ -91,7 +91,8 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `love_notes` | each person's own notes: emoji and text, up to 8 each |
 | `note_counts` | how many times each person has sent each note, kept up to date by a trigger |
 | `message_reactions` | one emoji reaction per person per message |
-| `trackers` | follow-ups: kind, title, details, link, status, next reminder time, repeat, follow-up log; private unless shared |
+| `games` | one row per game: kind, the two players, whose turn, the board or rounds as JSON, status and winner; only the player whose turn it is can change a board |
+| `game_picks` | hidden picks for Rock Paper Scissors and This or That; each person sees only their own, and a trigger reveals the round once both have picked |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |
 
 Profile photos live in the private `avatars` storage bucket, one folder per person; you can only upload into your own folder and only household members can get a link to view them.
@@ -107,4 +108,4 @@ npm run deploy            # runs the tests, then deploys to Vercel production
 ## Roadmap
 
 - Android app with Capacitor (`npx cap add android`) and native haptics and push
-- Add follow-up reminders to the phone calendar as a backup alarm
+- More games (Dots and Boxes, a daily couples quiz)

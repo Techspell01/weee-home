@@ -21,7 +21,7 @@ const cors = {
 };
 
 type Sub = { id: string; endpoint: string; p256dh: string; auth: string };
-type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'reminder' | 'item' | 'plan' | 'nudge' | 'countdown' | 'test' };
+type Message = { title: string; body: string; tag: string; url: string; kind?: 'chat' | 'reminder' | 'item' | 'plan' | 'nudge' | 'countdown' | 'game' | 'test' };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function formatTime(t: string | null) {
@@ -101,16 +101,33 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
       msg: { title: `🎉 Today: ${r.title}${years}`, body: 'The countdown is over. Have a lovely day!', tag: `countdown-${r.id}-${r.day}`, url: '/?tab=discover', kind: 'countdown' },
     };
   }
-  if (table === 'tracker_due') {
-    const STAGE: Record<string, string> = { applied: 'Applied', followed_up: 'Followed up', interview: 'Interview', offer: 'Offer', rejected: 'Rejected' };
-    const stage = r.stage ? STAGE[r.stage] : '';
-    const body = r.details || (r.kind === 'job'
-      ? `${stage ? stage + ' · ' : ''}${r.followups ? `followed up ${r.followups}×` : 'not followed up yet'}`
-      : 'Time to follow up');
+  if (table === 'game_event') {
+    const NAMES: Record<string, string> = { tictactoe: 'Tic Tac Toe', connect4: 'Four in a Row', rps: 'Rock Paper Scissors', thisorthat: 'This or That' };
+    const name = NAMES[r.kind] ?? 'a game';
+    const who = await displayName(r.household_id, r.from_user);
+    const turns = r.kind === 'tictactoe' || r.kind === 'connect4';
+    let title = `Your move · ${name}`;
+    let body = `${who} just played.`;
+    if (r.event === 'challenge') {
+      title = `🎮 ${who} challenged you`;
+      body = r.kind === 'thisorthat' ? `${name} · ${r.total || 10} questions about you two` : `${name} · ${turns ? 'you go first' : 'tap to play'}`;
+    } else if (r.event === 'picked') {
+      body = `${who} has picked. Your turn.`;
+    } else if (r.event === 'round') {
+      title = r.kind === 'thisorthat' ? `${name} · question ${r.round}` : `${name} · round ${r.round}`;
+      body = r.kind === 'thisorthat' ? `${who} answered. See if you matched.` : `See what ${who} picked, then pick again.`;
+    } else if (r.event === 'finished') {
+      body = 'Tap for a rematch';
+      if (r.ended_by && r.ended_by === r.from_user) title = `${who} ended ${name}`;
+      else if (r.kind === 'thisorthat') title = `💞 You matched ${r.matches ?? 0} of ${r.total || 10}`;
+      else if (r.winner === r.to_user) title = `🏆 You won ${name}!`;
+      else if (r.winner === r.from_user) title = `${who} won ${name}`;
+      else title = `${name}: it's a draw`;
+    }
     return {
-      actor: null,
-      only: r.owner, // reminders go to the person who set them
-      msg: { title: `Follow up: ${r.title}`, body, tag: `tracker-${r.id}`, url: '/?tab=tracker', kind: 'reminder' },
+      actor: r.from_user,
+      only: r.to_user,
+      msg: { title, body, tag: `game-${r.id}`, url: `/?tab=games&game=${r.id}`, kind: 'game' },
     };
   }
   return null;

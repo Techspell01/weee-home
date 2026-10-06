@@ -18,7 +18,7 @@ export const Icon = {
   back: () => svg(<path d="M15 18l-6-6 6-6" />, 22),
   calendar: () => svg(<><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /><path d="M12 13.6l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2L9.1 15.7l2-.3z" strokeWidth="1.4" /></>, 22, { strokeWidth: 2 }),
   cart: () => svg(<><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2" /><circle cx="10" cy="20" r="1.3" /><circle cx="17" cy="20" r="1.3" /></>, 22, { strokeWidth: 2 }),
-  tracker: () => svg(<><circle cx="12" cy="13" r="7.5" /><path d="M12 9.5V13l2.5 2M5 4.5L2.5 7M19 4.5L21.5 7" /></>, 22, { strokeWidth: 2 }),
+  game: () => svg(<><path d="M7.6 7h8.8a4.6 4.6 0 0 1 4.5 5.6l-.9 4.1a2.6 2.6 0 0 1-4.5 1.2L13.9 16h-3.8l-1.6 1.9A2.6 2.6 0 0 1 4 16.7l-.9-4.1A4.6 4.6 0 0 1 7.6 7z" /><path d="M8.2 10.4v3.2M6.6 12h3.2" /><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none" /><circle cx="17.4" cy="13.2" r=".9" fill="currentColor" stroke="none" /></>, 22, { strokeWidth: 2 }),
   briefcase: () => svg(<><rect x="3" y="7.5" width="18" height="12" rx="2.5" /><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3 13h18" /></>, 20, { strokeWidth: 2 }),
   task: () => svg(<><circle cx="12" cy="12" r="8.5" /><path d="M8.5 12.2l2.4 2.3 4.6-4.8" /></>, 20, { strokeWidth: 2 }),
   link: () => svg(<><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>, 16, { strokeWidth: 2 }),
@@ -125,7 +125,7 @@ export function BigValue({ value, unit, className = '' }) {
 // Popup banner that slides down from the top (arrivals, departures, messages).
 export function AlertBanner({ alert, onOpen, onClose }) {
   if (!alert) return null;
-  const Glyph = alert.kind === 'chat' ? Icon.chat : Icon.tracker;
+  const Glyph = alert.kind === 'chat' ? Icon.chat : alert.kind === 'game' ? Icon.game : Icon.heart;
   return (
     <div className={`alert-banner kind-${alert.kind}`} key={alert.key} role="alert" onClick={onOpen}>
       <span className="alert-icon"><Glyph /></span>
