@@ -1,21 +1,11 @@
-import { useState } from 'react';
 import { BigValue, Icon } from '../components/ui.jsx';
 import { monthKey, monthLabel, settlements, spending } from '../lib/money.js';
 import { ago } from '../lib/time.js';
 import { visibleMessages } from '../lib/chat.js';
+import Countdowns from '../components/Countdowns.jsx';
 
-// Discover: the hub for Shopping, Money and Chat.
+// Discover: the hub for Shopping, Money, Chat and Countdowns.
 export default function DiscoverTab({ hh, actions, notify, nameOf, me, now, open, unread }) {
-  const [sent, setSent] = useState(0);
-  const others = hh.members.filter(m => m.user_id !== me);
-  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
-  const today = hh.nudges.filter(n => Date.parse(n.created_at) >= startOfDay.getTime());
-  const gotToday = today.filter(n => n.from_user !== me);
-  const sentToday = today.filter(n => n.from_user === me).length;
-  const lastGot = hh.nudges.find(n => n.from_user !== me);
-  async function sendHeart() {
-    if (await actions.sendNudge()) { setSent(n => n + 1); notify(`Heart sent to ${others.map(o => o.display_name).join(' and ') || 'your household'} 💗`); }
-  }
   const need = hh.items.filter(i => i.status === 'need');
   const urgent = need.filter(i => i.urgent).length;
   const month = monthKey(now);
@@ -45,19 +35,6 @@ export default function DiscoverTab({ hh, actions, notify, nameOf, me, now, open
           <div className="tile-sub">{monthLabel(month).split(' ')[0]} · {balance}</div>
         </button>
 
-        <div className="tile wide heart-tile">
-          <button type="button" key={sent} className={`heart-send${sent ? ' sent' : ''}`} onClick={sendHeart} data-haptic="heartbeat" aria-label="Send a heart"><Icon.heart /></button>
-          <div className="heart-copy">
-            <div className="tile-title">Thinking of you</div>
-            <div className="tile-sub">
-              {gotToday.length
-                ? `${nameOf(gotToday[0].from_user)} sent you ${gotToday.length} ${gotToday.length === 1 ? 'heart' : 'hearts'} today`
-                : lastGot ? `Last heart from ${nameOf(lastGot.from_user)} ${ago(lastGot.created_at, now)}` : `Tap the heart to let ${others[0]?.display_name || 'them'} know`}
-            </div>
-            {sentToday > 0 && <div className="tile-sub faint">You sent {sentToday} today</div>}
-          </div>
-        </div>
-
         <button type="button" className="tile wide chat-tile" onClick={() => open('chat')}>
           <div className="tile-top">
             <span className="tile-icon"><Icon.chat /></span>
@@ -69,6 +46,10 @@ export default function DiscoverTab({ hh, actions, notify, nameOf, me, now, open
           </div>
           {last && <div className="tile-sub faint">{ago(last.created_at, now)}</div>}
         </button>
+      </div>
+
+      <div className="discover-countdowns">
+        <Countdowns hh={hh} actions={actions} notify={notify} now={now} />
       </div>
     </section>
   );

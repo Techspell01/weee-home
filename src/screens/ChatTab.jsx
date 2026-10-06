@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar, ConfirmButton, Empty, Icon } from '../components/ui.jsx';
 import { toDateString, daysUntil } from '../lib/plans.js';
-import { visibleMessages } from '../lib/chat.js';
+import { splitLinks, visibleMessages } from '../lib/chat.js';
 import { haptic } from '../lib/haptics.js';
 
 const GROUP_GAP_MS = 5 * 60000;
@@ -241,7 +241,9 @@ export default function ChatTab({ hh, actions, nameOf, notify, me, now, avatars 
               </button>
             )}
             {m.pinned_at && <span className="pin-mark" aria-label="Pinned"><Icon.pin /></span>}
-            {m.body}
+            {splitLinks(m.body).map((part, i) => part.url
+              ? <a key={i} href={part.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>{/maps\.google\./.test(part.url) ? 'Open in Maps' : part.url}</a>
+              : part.text)}
             {burst === m.id && <span className="heart-burst" aria-hidden="true">❤️</span>}
           </div>
         </div>

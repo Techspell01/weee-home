@@ -3,6 +3,7 @@ import { guessCategory, guessDays, itemKey, parseList } from './groceries.js';
 import { haptic } from './haptics.js';
 import { nextRepeat } from './tracker.js';
 import { squareJpeg } from './avatars.js';
+import { mapsLink } from './notes.js';
 
 export function friendlyError(error) {
   const msg = error?.message || '';
@@ -109,11 +110,11 @@ export function makeActions({ householdId, me, hh, notify }) {
       return run(supabase.from('plans').delete().eq('id', p.id), 'plans');
     },
 
-    // "Thinking of you"
-    async sendNudge() {
-      const { error } = await supabase.from('nudges').insert({ household_id: householdId });
-      if (error) { if (!/One heart/.test(error.message)) notify(friendlyError(error)); return false; }
-      haptic('heartbeat');
+    // Love notes: thinking of you, I love you, I miss you, where are you?
+    async sendNudge(kind = 'heart') {
+      const { error } = await supabase.from('nudges').insert({ household_id: householdId, kind });
+      if (error) { notify(/One heart/.test(error.message) ? 'One at a time 🙂' : friendlyError(error)); return false; }
+      haptic(kind === 'where' ? 'success' : 'heartbeat');
       hh.refresh('nudges');
       return true;
     },
@@ -168,6 +169,14 @@ export function makeActions({ householdId, me, hh, notify }) {
       const ok = await run(supabase.from('messages').insert({ household_id: householdId, body: text, reply_to: replyTo }), 'messages');
       if (ok) haptic('light');
       return ok;
+    },
+    // Answer "where are you?" with a one-off map link (no tracking).
+    async shareLocation() {
+      if (!navigator.geolocation) { notify("This phone can't share its location."); return false; }
+      const pos = await new Promise(resolve => navigator.geolocation.getCurrentPosition(resolve, () => resolve(null),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }));
+      if (!pos) { notify('Could not get your location. Allow location for Weee and try again.'); return false; }
+      return this.sendMessage(`📍 I'm here: ${mapsLink(pos.coords.latitude, pos.coords.longitude)}`);
     },
     // One reaction per person per message: same emoji again removes it.
     async react(m, emoji) {

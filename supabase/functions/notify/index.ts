@@ -75,16 +75,24 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
   }
   if (table === 'nudges') {
     const who = await displayName(r.household_id, r.from_user);
+    const NOTES: Record<string, [string, string]> = {
+      heart: [`💗 ${who} is thinking of you`, 'Tap to send one back'],
+      love: [`❤️ ${who}: I love you`, 'Tap to say it back'],
+      miss: [`🥺 ${who} misses you`, 'Tap to tell them you miss them too'],
+      where: [`📍 ${who}: Where are you?`, 'Tap to let them know'],
+    };
+    const kind = NOTES[r.kind] ? r.kind : 'heart';
+    const [title, body] = NOTES[kind];
     return {
       actor: r.from_user,
-      msg: { title: `💗 ${who} is thinking of you`, body: 'Tap to send one back', tag: `nudge-${r.household_id}`, url: '/?tab=discover&nudge=1', kind: 'nudge' },
+      msg: { title, body, tag: `nudge-${r.household_id}-${kind}`, url: '/?tab=plans&nudge=1', kind: 'nudge' },
     };
   }
   if (table === 'countdown_today') {
     const years = r.yearly && r.years > 0 ? ` · ${r.years} ${r.years === 1 ? 'year' : 'years'}` : '';
     return {
       actor: null,
-      msg: { title: `🎉 Today: ${r.title}${years}`, body: 'The countdown is over. Have a lovely day!', tag: `countdown-${r.id}-${r.day}`, url: '/?tab=plans', kind: 'countdown' },
+      msg: { title: `🎉 Today: ${r.title}${years}`, body: 'The countdown is over. Have a lovely day!', tag: `countdown-${r.id}-${r.day}`, url: '/?tab=discover', kind: 'countdown' },
     };
   }
   if (table === 'tracker_due') {

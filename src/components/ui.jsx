@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { WHERE_REPLIES, noteOf } from '../lib/notes.js';
 
 const svg = (children, size = 18, extra = {}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
@@ -137,21 +138,40 @@ export function AlertBanner({ alert, onOpen, onClose }) {
   );
 }
 
-// Full-screen "thinking of you" moment when a heart arrives.
-export function HeartOverlay({ heart, onSendBack, onClose }) {
+// Full-screen moment when a love note arrives: a heart, "I love you", "I miss you",
+// or "where are you?" with quick answers.
+export function HeartOverlay({ heart, onSendBack, onReply, onShareLocation, onOpenChat, onClose }) {
+  const [busy, setBusy] = useState(false);
   if (!heart) return null;
+  const note = noteOf(heart.kind);
+  const where = heart.kind === 'where';
   return (
-    <div className="heart-overlay" key={heart.key} role="dialog" aria-label={`${heart.from} is thinking of you`} onClick={onClose}>
+    <div className={`heart-overlay note-${heart.kind || 'heart'}`} key={heart.key} role="dialog" aria-label={note.title(heart.from)} onClick={onClose}>
       <div className="heart-card" onClick={e => e.stopPropagation()}>
         {heart.url && <img className="heart-photo" src={heart.url} alt="" />}
-        <span className="big-heart" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="120" height="120" fill="currentColor"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3 4.2 6.4-1.8 5-9.3 9.6-9.3 9.6z" /></svg>
-        </span>
-        <div className="heart-title">{heart.from} is thinking of you</div>
-        <div className="stack-row center-row">
-          <button type="button" className="btn" data-haptic="heartbeat" onClick={onSendBack}>Send one back 💗</button>
-          <button type="button" className="btn ghost" onClick={onClose}>Close</button>
-        </div>
+        {heart.kind === 'heart' || heart.kind === 'love' || !heart.kind
+          ? <span className="big-heart" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="120" height="120" fill="currentColor"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3 4.2 6.4-1.8 5-9.3 9.6-9.3 9.6z" /></svg>
+            </span>
+          : <span className="big-emoji" aria-hidden="true">{note.emoji}</span>}
+        <div className="heart-title">{note.title(heart.from)}</div>
+        {where ? <>
+          <div className="where-replies">
+            <button type="button" className="btn" disabled={busy} onClick={async () => { setBusy(true); await onShareLocation(); setBusy(false); }}>
+              {busy ? 'Finding you…' : '📍 Send my location'}
+            </button>
+            {WHERE_REPLIES.map(r => <button key={r} type="button" className="chip-btn" onClick={() => onReply(r)}>{r}</button>)}
+          </div>
+          <div className="stack-row center-row">
+            <button type="button" className="btn ghost" onClick={onOpenChat}>Reply in chat</button>
+            <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+          </div>
+        </> : (
+          <div className="stack-row center-row">
+            <button type="button" className="btn" data-haptic="heartbeat" onClick={() => onSendBack(heart.kind || 'heart')}>{note.back}</button>
+            <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+          </div>
+        )}
       </div>
     </div>
   );

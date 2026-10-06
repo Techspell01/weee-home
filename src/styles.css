@@ -725,6 +725,7 @@ a.btn { text-decoration: none; }
 
 /* ---------- chat: reply, pin, reactions ---------- */
 .swipe { position: relative; display: flex; align-items: center; max-width: 100%; touch-action: pan-y; }
+.msg .swipe { width: 100%; }
 .msg.mine .swipe { justify-content: flex-end; width: 100%; }
 .reply-hint {
   position: absolute; left: -34px; top: 50%; width: 28px; height: 28px; margin-top: -14px; border-radius: 50%;
@@ -890,3 +891,47 @@ body.kb-open .sheet { max-height: calc(100dvh - var(--kb, 0px) - 20px); }
 }
 body.sheet-open { overflow: hidden; }
 body.sheet-open .tabs { opacity: 0; pointer-events: none; }
+
+/* ---------- love notes (home) ---------- */
+.notes-card {
+  margin-top: 12px; padding: 14px; border-radius: 28px; display: grid; gap: 12px;
+  background: var(--card); border: 1px solid var(--card-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.notes-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 4px; min-width: 0; }
+.notes-title { font-size: 14px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.notes-got { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.notes-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.note-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 12px 4px 11px; border-radius: 22px; cursor: pointer;
+  font: inherit; color: var(--fg); text-align: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line);
+  transition: transform .15s ease, background .2s ease;
+}
+.note-btn:active { transform: scale(.96); background: rgba(255, 255, 255, 0.08); }
+.note-emoji { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; font-size: 22px; background: rgba(255, 255, 255, 0.06); }
+.note-heart .note-emoji, .note-love .note-emoji { background: rgba(255, 92, 122, 0.14); }
+.note-miss .note-emoji { background: rgba(233, 179, 106, 0.14); }
+.note-where .note-emoji { background: rgba(58, 168, 255, 0.12); }
+.note-label { font-size: 12.5px; font-weight: 600; line-height: 1.2; text-wrap: balance; overflow-wrap: anywhere; }
+.note-btn.sent .note-emoji { animation: heart-pop .7s cubic-bezier(.34, 1.56, .64, 1); }
+
+/* ---------- love notes (arriving) ---------- */
+.note-love .big-heart { color: #FF2D55; filter: drop-shadow(0 10px 44px rgba(255, 45, 85, 0.6)); }
+.big-emoji { font-size: 96px; line-height: 1; filter: drop-shadow(0 10px 36px rgba(0, 0, 0, 0.5)); animation: heartbeat-big 1.6s ease-in-out infinite; }
+.note-where .big-emoji { animation: where-bob 1.4s ease-in-out infinite; }
+@keyframes where-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.heart-overlay:not(.note-heart):not(.note-love) .heart-photo { margin-bottom: -8px; }
+.where-replies { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.where-replies .btn { flex-basis: 100%; }
+.chip-btn {
+  padding: 10px 16px; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 600; color: var(--fg); cursor: pointer;
+  background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line);
+}
+.chip-btn:active { transform: scale(.96); }
+
+/* ---------- links in chat, countdowns on discover ---------- */
+.bubble a { color: inherit; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
+.discover-countdowns { margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .big-emoji, .note-where .big-emoji, .note-btn.sent .note-emoji { animation: none; }
+}

@@ -3,7 +3,8 @@ import { KINDS, MY_KINDS, TOGETHER_KINDS, dayStrip, dayTitle, formatTime, mapLin
 import { AvatarStack, BigValue, ConfirmButton, Icon, Sheet } from '../components/ui.jsx';
 import { haptic } from '../lib/haptics.js';
 import { togetherInfo, togetherSince } from '../lib/together.js';
-import Countdowns from '../components/Countdowns.jsx';
+import { NOTES, NOTE_KINDS } from '../lib/notes.js';
+import { ago } from '../lib/time.js';
 
 const IDEAS = 'ideas';
 
@@ -28,6 +29,18 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now, househo
   const person = id => ({ id, name: id === me ? (people.find(m => m.user_id === me)?.display_name || 'You') : nameOf(id), url: avatars[id] });
   const couple = people.map(m => person(m.user_id));
   const tg = togetherInfo(togetherSince(household, hh.countdowns), now);
+
+  // ---- love notes ----
+  const [sentPop, setSentPop] = useState({});
+  const others = people.filter(m => m.user_id !== me);
+  const sendTo = others.length === 1 ? others[0].display_name : others.length ? 'everyone' : null;
+  const lastGot = hh.nudges.find(n => n.from_user !== me && now - Date.parse(n.created_at) < 86400000);
+  async function sendNote(kind) {
+    if (await actions.sendNudge(kind)) {
+      setSentPop(p => ({ ...p, [kind]: (p[kind] || 0) + 1 }));
+      notify(NOTES[kind].sent);
+    }
+  }
 
   // ---- plans ----
   const open = hh.plans.filter(p => !p.done);
@@ -156,7 +169,23 @@ export default function PlansTab({ hh, actions, nameOf, notify, me, now, househo
         </div>
       </div>
 
-      <Countdowns hh={hh} actions={actions} notify={notify} now={now} />
+      {/* ---- love notes ---- */}
+      <div className="notes-card">
+        <div className="notes-head">
+          <span className="notes-title">{sendTo ? `Send to ${sendTo}` : 'Love notes'}</span>
+          {lastGot
+            ? <span className="notes-got">{NOTES[lastGot.kind]?.emoji || '💗'} from {nameOf(lastGot.from_user)} · {ago(lastGot.created_at, now)}</span>
+            : !sendTo && <span className="notes-got">Invite your partner from Settings</span>}
+        </div>
+        <div className="notes-grid">
+          {NOTE_KINDS.map(k => (
+            <button key={`${k}-${sentPop[k] || 0}`} type="button" className={`note-btn note-${k}${sentPop[k] ? ' sent' : ''}`} onClick={() => sendNote(k)}>
+              <span className="note-emoji" aria-hidden="true">{NOTES[k].emoji}</span>
+              <span className="note-label">{NOTES[k].label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* ---- the selected day ---- */}
       <div className="section-head">

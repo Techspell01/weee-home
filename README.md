@@ -8,13 +8,13 @@
 
 | | |
 |---|---|
-| **Plans** | Opens on a card for the two of you: both photos, **days together** (with a glow on anniversaries, every 100 days and every 1,000), what's on today and what's next. Below it, the selected day as one timeline of plans you have **together** (dates, outings, trips, family) and **each person's own schedule** (work, appointments, errands with start and end times). Adding or editing a plan opens a bottom sheet; a calendar button shows the next three months. Undated plans are saved as **Ideas**. Places open in Google Maps. |
+| **Plans** | Opens on a card for the two of you: both photos, **days together** (with a glow on anniversaries, every 100 days and every 1,000), what's on today and what's next. Then the love notes, and below them the selected day as one timeline of plans you have **together** (dates, outings, trips, family) and **each person's own schedule** (work, appointments, errands with start and end times). Adding or editing a plan opens a bottom sheet; a calendar button shows the next three months. Undated plans are saved as **Ideas**. Places open in Google Maps. |
 | **Profile photos** | Add a photo in Settings. It shows on the Plans card, beside your messages in Chat and on the "thinking of you" heart. Photos are cropped to a square, stored in a private bucket and only visible to people in your household. |
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
-| **Countdowns** | Big-number tiles on Plans ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
-| **Thinking of you** | One heart button (Discover and the chat box): your partner gets a notification with a heartbeat vibration, or a full-screen pulsing heart if Weee is open, with "Send one back". |
+| **Countdowns** | Big-number tiles on Discover ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
+| **Love notes** | One tap on the home screen sends 💗 Thinking of you, ❤️ I love you, 🥺 I miss you or 📍 Where are you? (the heart is also in the chat box). Your partner gets a notification with a heartbeat vibration, or a full-screen moment if Weee is open, with "Love you too" / "Miss you too". "Where are you?" offers quick answers (On my way, At home, At work…) or a one-off map link of where they are right now, sent into the chat. |
 | **Tracker** | Things to follow up on, like job applications (Applied → Followed up → Interview → Offer / Rejected) or anything else. Set a reminder date and time, optionally repeating every few days; Weee sends a push notification at that time even when the app is closed. Log each follow-up with a note, snooze, archive. Private by default, or shared with your partner. |
-| **Chat** | A private chat with "typing…", sent/delivered/seen ticks, double-tap ❤️ and emoji reactions, swipe-to-reply with quotes, pinned messages, delete for me / unsend / clear chat, and push notifications. |
+| **Chat** | A private chat with "typing…", sent/delivered/seen ticks, double-tap ❤️ and emoji reactions, swipe-to-reply with quotes, pinned messages, tappable links (map links show as "Open in Maps"), delete for me / unsend / clear chat, and push notifications. |
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
 | **Money** | Monthly spending by category (groceries, outings, rent, bills, travel…), equal splits, "who owes whom", and settle-up. |
 | **Push notifications** | "Priya added Milk", "Priya planned: Dinner at Toit", chat messages and follow-up reminders, even with the app closed (iPhone Home Screen app on iOS 16.4+, and Android). |
@@ -87,7 +87,7 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `expenses` | amount, category, payer, who it's split between, settle-ups |
 | `push_subscriptions` | which devices get notifications |
 | `countdowns` | title, date, repeats yearly |
-| `nudges` | "thinking of you" hearts (kept 30 days, rate-limited) |
+| `nudges` | love notes: `kind` is heart, love, miss or where (kept 30 days, one every 3 seconds) |
 | `message_reactions` | one emoji reaction per person per message |
 | `trackers` | follow-ups: kind, title, details, link, status, next reminder time, repeat, follow-up log; private unless shared |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |
