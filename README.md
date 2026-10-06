@@ -1,4 +1,9 @@
 # Weee
+<img width="1600" height="900" alt="weee-1-hero" src="https://github.com/user-attachments/assets/6bf8125c-cbbd-45df-9972-a6e208a4b264" />
+
+<img width="1600" height="900" alt="weee-2-features" src="https://github.com/user-attachments/assets/0004057b-fc57-44b0-8b63-9ad72e4d3211" />
+
+
 
 **Your home, together.** Weee is a shared home app for couples (and roommates or families). Plans and daily schedules, love notes, games you play together, a live shopping list, chat and spending, all synced instantly between everyone in the household, with push notifications.
 
