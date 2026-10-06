@@ -5,6 +5,9 @@ import { GAMES, initialState } from './games.js';
 import { squareJpeg } from './avatars.js';
 import { mapsLink } from './notes.js';
 
+const isNetwork = error => /fetch|network|timed? ?out/i.test(error?.message || '');
+const retrySoon = fn => new Promise(resolve => setTimeout(resolve, 800)).then(fn);
+
 export function friendlyError(error) {
   const msg = error?.message || '';
   if (/fetch|network/i.test(msg)) return "You're offline. Check your internet and try again.";
@@ -147,8 +150,8 @@ export function makeActions({ householdId, me, hh, notify }) {
     async startGame(kind, opponent) {
       const row = { household_id: householdId, kind, opponent, turn: GAMES[kind].turns ? opponent : null, state: initialState(kind) };
       const { data, error } = await supabase.from('games').insert(row).select().single();
+      if (!error) { hh.applyRow('games', data); hh.sendGame(data, true); haptic('success'); return data; }
       hh.refresh('games');
-      if (!error) { haptic('success'); return data; }
       if (error.code === '23505') {
         const { data: existing } = await supabase.from('games').select('*')
           .eq('household_id', householdId).eq('kind', kind).eq('status', 'active').maybeSingle();
@@ -157,19 +160,42 @@ export function makeActions({ householdId, me, hh, notify }) {
       notify(friendlyError(error));
       return null;
     },
-    // A move in Tic Tac Toe or Four in a Row (only allowed on your turn).
-    playMove(g, changes) {
+    // A move in a turn-based game (only allowed on your turn): shown at once, saved,
+    // then sent straight to the other phone so it updates without waiting.
+    async playMove(g, changes) {
       hh.patch('games', g.id, { ...changes, last_actor: me });
-      return run(supabase.from('games').update(changes).eq('id', g.id), 'games');
+      const save = () => supabase.from('games').update(changes).eq('id', g.id).select().maybeSingle();
+      let { data, error } = await save();
+      if (error && isNetwork(error)) ({ data, error } = await retrySoon(save));
+      if (error || !data) {
+        notify(error ? friendlyError(error) : "That move didn't go through. It may not be your turn any more.");
+        haptic('error');
+        hh.refreshGame(g.id);
+        return false;
+      }
+      hh.applyRow('games', data);
+      hh.sendGame(data);
+      return true;
     },
-    // A hidden pick in Rock Paper Scissors or This or That.
+    // A hidden pick (Rock Paper Scissors and the question games). If it completes the
+    // round, the database reveals it; we fetch that and pass it straight on.
     async pick(g, value) {
       hh.add('picks', { game_id: g.id, round: g.round, pick: value });
       hh.patch('games', g.id, { state: { ...g.state, picked: [...(g.state?.picked || []), me] } });
-      const ok = await run(supabase.from('game_picks').insert({ game_id: g.id, household_id: householdId, round: g.round, pick: value }), 'games');
+      const save = () => supabase.from('game_picks').insert({ game_id: g.id, household_id: householdId, round: g.round, pick: value });
+      let { error } = await save();
+      if (error && isNetwork(error)) ({ error } = await retrySoon(save));
+      if (error && error.code !== '23505') { // 23505: this pick was already saved (a retry that had gone through)
+        notify(friendlyError(error));
+        haptic('error');
+        hh.refreshGame(g.id);
+        hh.refresh('picks');
+        return false;
+      }
+      haptic('select');
+      hh.sendGame(await hh.refreshGame(g.id));
       hh.refresh('picks');
-      if (ok) haptic('select');
-      return ok;
+      return true;
     },
     // Clear finished games from your own Recent list (your partner still sees them).
     hideGames(ids) {
@@ -179,8 +205,10 @@ export function makeActions({ householdId, me, hh, notify }) {
       }
       return run(supabase.rpc('hide_games', { p_games: ids }), 'games');
     },
-    endGame(g) {
-      return run(supabase.rpc('end_game', { p_game: g.id }), 'games');
+    async endGame(g) {
+      const ok = await run(supabase.rpc('end_game', { p_game: g.id }));
+      if (ok) hh.sendGame(await hh.refreshGame(g.id));
+      return ok;
     },
     // Tell the database which game is open on this phone, so moves don't send a push you'd see anyway.
     watchGame(gameId) {

@@ -23,7 +23,7 @@ export default function LoveNotes({ hh, actions, notify, nameOf, me, now }) {
 
   const others = hh.members.filter(m => m.user_id !== me);
   const sendTo = others.length === 1 ? others[0].display_name : others.length ? 'everyone' : null;
-  const lastGot = hh.nudges.find(n => n.from_user !== me && now - Date.parse(n.created_at) < 86400000);
+  const lastGot = hh.nudges.findLast(n => n.from_user !== me && now - Date.parse(n.created_at) < 86400000); // newest
   const counts = sentCounts(hh.counts, me);
   const mine = hh.loveNotes.filter(n => n.created_by === me);
   const full = mine.length >= MAX_CUSTOM;

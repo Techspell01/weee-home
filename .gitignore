@@ -9,3 +9,4 @@ dev-dist
 # local tool state
 .vercel
 supabase/.temp
+.tmp-tests

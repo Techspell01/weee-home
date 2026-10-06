@@ -1333,3 +1333,7 @@ body.sheet-open .tabs { opacity: 0; pointer-events: none; }
   .emote-float, .tod-card, .ml-card, .notes-card.arranging .note-btn, .mem-card.miss .mem-face { animation: none; }
   .mem-inner { transition: none; }
 }
+
+/* games: shown only while the connection is being re-established */
+.gv-sync { display: flex; align-items: center; justify-content: center; gap: 6px; width: fit-content; margin: 12px auto 0; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.gv-sync .wait-dots { margin: 0; }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Avatar, ConfirmButton, Icon } from '../components/ui.jsx';
 import { GAMES, GAME_ORDER, gameStatus, knowScores, opponentOf, scoreboard } from '../lib/games.js';
 import { ago } from '../lib/time.js';
+import { newestFirst } from '../lib/rows.js';
 import { GameArt, gameNav } from '../components/games/GameBits.jsx';
 import GameView from '../components/games/GameView.jsx';
 
@@ -29,10 +30,10 @@ export default function GamesTab({ hh, actions, notify, nameOf, me, now, avatars
   const partnerName = partner?.display_name || 'your partner';
   const online = partner && (hh.online || []).includes(partner.user_id);
   const mine = hh.games.filter(g => g.created_by === me || g.opponent === me);
-  const active = mine.filter(g => g.status === 'active');
+  const active = newestFirst(mine.filter(g => g.status === 'active'));
   const activeOf = kind => active.find(g => g.kind === kind);
   const board = scoreboard(mine, me);
-  const finished = mine.filter(g => g.status === 'done' && !(g.hidden_by || []).includes(me));
+  const finished = newestFirst(mine.filter(g => g.status === 'done' && !(g.hidden_by || []).includes(me)), 'updated_at');
   const recent = finished.slice(0, 8);
 
   const game = openId && (hh.games.find(g => g.id === openId) || (fresh?.id === openId ? fresh : null));

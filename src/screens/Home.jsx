@@ -156,7 +156,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
   useEffect(() => {
     if (!fromHeartLink.current || !hh.loaded) return;
     fromHeartLink.current = false;
-    const last = hh.nudges.find(n => n.from_user !== me && Date.now() - Date.parse(n.created_at) < 3600000);
+    const last = hh.nudges.findLast(n => n.from_user !== me && Date.now() - Date.parse(n.created_at) < 3600000); // newest
     if (last) setHeart({ from: nameFrom(hh.members, last.from_user), userId: last.from_user, key: last.id, kind: last.kind || 'heart', text: last.text, emoji: last.emoji });
     try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
   }, [hh.loaded]); // eslint-disable-line react-hooks/exhaustive-deps

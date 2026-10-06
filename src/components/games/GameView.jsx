@@ -67,6 +67,17 @@ export default function GameView({ g, hh, actions, nameOf, me, avatars, onBack, 
     haptic('select');
   }
 
+  // Never get stuck on "thinking…": while the game is on, also check it directly every few
+  // seconds (often while waiting for the other player), in case a live update was missed.
+  const waiting = status !== 'your-move';
+  useEffect(() => {
+    if (g.status !== 'active') return;
+    const check = () => { if (document.visibilityState === 'visible') hh.refreshGame(g.id); };
+    const iv = setInterval(check, waiting ? 2500 : 8000);
+    document.addEventListener('visibilitychange', check);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', check); };
+  }, [g.id, g.status, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Their move lands while you're watching: a soft tick. The game ends: celebrate or commiserate.
   const iKnewMore = () => { const s = knowScores(g); return s[me] > s[other]; };
   const seen = useRef({ updated: g.updated_at, status: g.status });
@@ -172,6 +183,7 @@ export default function GameView({ g, hh, actions, nameOf, me, avatars, onBack, 
         {EMOTES.map(e => <button key={e} type="button" className="emote" onClick={() => tease(e)} aria-label={`Send ${e}`}>{e}</button>)}
       </div>
 
+      {['offline', 'connecting'].includes(hh.status) && <div className="gv-sync"><i className="wait-dots"><i /><i /><i /></i> Reconnecting</div>}
       {line && <div className={`gv-status${status === 'your-move' ? ' mine' : ''}`}>{line}</div>}
 
       {g.status === 'done' && resultFirst && resultCard}
