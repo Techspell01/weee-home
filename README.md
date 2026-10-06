@@ -1,7 +1,18 @@
 # Weee
-<img width="1600" height="900" alt="weee-1-hero" src="https://github.com/user-attachments/assets/6bf8125c-cbbd-45df-9972-a6e208a4b264" />
+<img width="1600" height="900" alt="weee-1-hero (1)" src="https://github.com/user-attachments/assets/f4da6b8e-9756-45e5-af7e-251301bd110d" />
 
-<img width="1600" height="900" alt="weee-2-features" src="https://github.com/user-attachments/assets/0004057b-fc57-44b0-8b63-9ad72e4d3211" />
+<img width="1600" height="900" alt="weee-2-screens" src="https://github.com/user-attachments/assets/a00029d7-577f-4468-9f9c-47cc0a8adb46" />
+
+<img width="780" height="1688" alt="1-plans" src="https://github.com/user-attachments/assets/df890366-a748-4b6f-ae31-4a99e38571fa" />
+
+<img width="780" height="1688" alt="3-games" src="https://github.com/user-attachments/assets/bee83a5e-53c2-4a76-adeb-1983b4b310ba" />
+<img width="780" height="1688" alt="7-money" src="https://github.com/user-attachments/assets/37f08959-3295-4fc0-a8e5-40ec5dfd62a4" />
+<img width="780" height="1688" alt="8-chat" src="https://github.com/user-attachments/assets/c7865ef7-28ea-4684-bc58-f6499cb4067c" />
+
+
+
+
+
 
 
 
