@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { WHERE_REPLIES, noteOf } from '../lib/notes.js';
+import { WHERE_REPLIES, noteFor } from '../lib/notes.js';
 
 const svg = (children, size = 18, extra = {}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
@@ -143,7 +143,7 @@ export function AlertBanner({ alert, onOpen, onClose }) {
 export function HeartOverlay({ heart, onSendBack, onReply, onShareLocation, onOpenChat, onClose }) {
   const [busy, setBusy] = useState(false);
   if (!heart) return null;
-  const note = noteOf(heart.kind);
+  const note = noteFor(heart);
   const where = heart.kind === 'where';
   return (
     <div className={`heart-overlay note-${heart.kind || 'heart'}`} key={heart.key} role="dialog" aria-label={note.title(heart.from)} onClick={onClose}>
@@ -155,6 +155,7 @@ export function HeartOverlay({ heart, onSendBack, onReply, onShareLocation, onOp
             </span>
           : <span className="big-emoji" aria-hidden="true">{note.emoji}</span>}
         <div className="heart-title">{note.title(heart.from)}</div>
+        {note.custom && <div className="heart-from">from {heart.from}</div>}
         {where ? <>
           <div className="where-replies">
             <button type="button" className="btn" disabled={busy} onClick={async () => { setBusy(true); await onShareLocation(); setBusy(false); }}>
@@ -168,7 +169,7 @@ export function HeartOverlay({ heart, onSendBack, onReply, onShareLocation, onOp
           </div>
         </> : (
           <div className="stack-row center-row">
-            <button type="button" className="btn" data-haptic="heartbeat" onClick={() => onSendBack(heart.kind || 'heart')}>{note.back}</button>
+            <button type="button" className="btn" data-haptic="heartbeat" onClick={() => onSendBack(note.backKind)}>{note.back}</button>
             <button type="button" className="btn ghost" onClick={onClose}>Close</button>
           </div>
         )}

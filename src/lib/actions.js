@@ -111,12 +111,23 @@ export function makeActions({ householdId, me, hh, notify }) {
     },
 
     // Love notes: thinking of you, I love you, I miss you, where are you?
-    async sendNudge(kind = 'heart') {
-      const { error } = await supabase.from('nudges').insert({ household_id: householdId, kind });
+    async sendNudge(kind = 'heart', noteId = null) {
+      const { error } = await supabase.from('nudges').insert({ household_id: householdId, kind, note_id: noteId });
       if (error) { notify(/One heart/.test(error.message) ? 'One at a time 🙂' : friendlyError(error)); return false; }
       haptic(kind === 'where' ? 'success' : 'heartbeat');
       hh.refresh('nudges');
+      hh.refresh('counts');
       return true;
+    },
+    // Your own notes ("Baby 🥰"), only seen inside the household.
+    async addLoveNote({ emoji, text }) {
+      const ok = await run(supabase.from('love_notes').insert({ household_id: householdId, emoji, text }), 'loveNotes');
+      if (ok) haptic('success');
+      return ok;
+    },
+    removeLoveNote(note) {
+      hh.drop('loveNotes', r => r.id === note.id);
+      return run(supabase.from('love_notes').delete().eq('id', note.id), 'loveNotes');
     },
 
     // Countdowns

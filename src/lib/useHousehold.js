@@ -17,9 +17,11 @@ const TABLES = {
   countdowns: { table: 'countdowns', select: '*', order: 'date' },
   nudges: { table: 'nudges', select: '*', order: 'created_at', desc: true, limit: 50 },
   reactions: { table: 'message_reactions', select: 'message_id, user_id, emoji', order: 'created_at' },
+  loveNotes: { table: 'love_notes', select: '*', order: 'created_at' },
+  counts: { table: 'note_counts', select: 'user_id, note_key, sent, last_sent_at', order: 'note_key' },
 };
 
-const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], trackers: [], countdowns: [], nudges: [], reactions: [] };
+const EMPTY = { members: [], items: [], pantry: [], expenses: [], plans: [], messages: [], hides: [], trackers: [], countdowns: [], nudges: [], reactions: [], loveNotes: [], counts: [] };
 
 // onRemoteInsert(key, row) fires when someone else adds a list item, a plan or a message.
 // `online` lists who has Weee open right now (Supabase Realtime presence).

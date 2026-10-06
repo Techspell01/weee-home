@@ -23,3 +23,32 @@ describe('links in chat', () => {
     expect(splitLinks('no links here')).toEqual([{ text: 'no links here' }]);
   });
 });
+
+import { noteFor, noteKey, sentCounts } from './notes.js';
+
+describe('custom notes and counts', () => {
+  it('keys built-in and custom notes', () => {
+    expect(noteKey({ kind: 'love' })).toBe('love');
+    expect(noteKey({ kind: 'custom', note_id: 'abc' })).toBe('custom:abc');
+    expect(noteKey({ kind: 'custom', id: 'xyz' })).toBe('custom:xyz');
+  });
+
+  it('counts only one person\'s sends', () => {
+    const rows = [
+      { user_id: 'me', note_key: 'love', sent: 12 },
+      { user_id: 'her', note_key: 'love', sent: 9 },
+      { user_id: 'me', note_key: 'custom:abc', sent: 3 },
+    ];
+    expect(sentCounts(rows, 'me')).toEqual({ love: 12, 'custom:abc': 3 });
+    expect(sentCounts(undefined, 'me')).toEqual({});
+  });
+
+  it('shows a custom note with its own words and a heart to send back', () => {
+    const n = noteFor({ kind: 'custom', text: 'Baby', emoji: '🥰' });
+    expect(n.title('Hari')).toBe('Baby');
+    expect(n.emoji).toBe('🥰');
+    expect(n.backKind).toBe('heart');
+    expect(noteFor({ kind: 'love' }).backKind).toBe('love');
+    expect(noteFor({}).label).toBe('Thinking of you');
+  });
+});

@@ -103,7 +103,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
         const asking = row.kind === 'where';
         if (!viaPush) playSound(asking ? 'chat' : 'heart');
         haptic(asking ? 'notify' : 'heartbeat');
-        setHeart({ from: nameFrom(members, row.from_user), userId: row.from_user, key: row.id, kind: row.kind || 'heart' });
+        setHeart({ from: nameFrom(members, row.from_user), userId: row.from_user, key: row.id, kind: row.kind || 'heart', text: row.text, emoji: row.emoji });
         return;
       }
       if (key === 'messages') {
@@ -159,7 +159,7 @@ export default function Home({ membership, me, onLeft, onHouseholdChanged }) {
     if (!fromHeartLink.current || !hh.loaded) return;
     fromHeartLink.current = false;
     const last = hh.nudges.find(n => n.from_user !== me && Date.now() - Date.parse(n.created_at) < 3600000);
-    if (last) setHeart({ from: nameFrom(hh.members, last.from_user), userId: last.from_user, key: last.id, kind: last.kind || 'heart' });
+    if (last) setHeart({ from: nameFrom(hh.members, last.from_user), userId: last.from_user, key: last.id, kind: last.kind || 'heart', text: last.text, emoji: last.emoji });
     try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
   }, [hh.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -14,3 +14,28 @@ export const noteOf = kind => NOTES[kind] || NOTES.heart;
 export const WHERE_REPLIES = ['On my way', 'At home', 'At work', 'In class', 'Out, will call you'];
 
 export const mapsLink = (lat, lng) => `https://maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+
+// ---------- your own notes ----------
+export const MAX_CUSTOM = 8;
+export const EMOJI_IDEAS = ['🥰', '😘', '🫶', '🤗', '😴', '🌙', '☀️', '🍫', '🌸', '💋', '✨', '🧸'];
+export const TEXT_IDEAS = ['Baby', 'Good morning', 'Good night', 'Hug me', 'Call me', 'Come home soon', 'Proud of you'];
+
+// The counter key for a note: heart | love | miss | where | custom:<id>
+export const noteKey = ({ kind, note_id, id }) => (kind === 'custom' ? `custom:${note_id || id}` : kind);
+
+// How many times one person has sent each note: { love: 12, 'custom:<id>': 3 }
+export function sentCounts(counts = [], userId) {
+  const out = {};
+  for (const c of counts) if (c.user_id === userId) out[c.note_key] = c.sent;
+  return out;
+}
+
+// What to show for a received note, built-in or custom.
+export function noteFor(row = {}) {
+  if (row.kind === 'custom') {
+    const text = row.text || 'Love note';
+    const emoji = row.emoji || '💌';
+    return { emoji, label: text, title: () => text, custom: true, back: 'Send a heart back 💗', backKind: 'heart', sent: `"${text}" sent ${emoji}` };
+  }
+  return { ...noteOf(row.kind), backKind: row.kind || 'heart' };
+}

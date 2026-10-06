@@ -81,6 +81,12 @@ async function messageFor(table: string, r: Record<string, any>): Promise<{ msg:
       miss: [`🥺 ${who} misses you`, 'Tap to tell them you miss them too'],
       where: [`📍 ${who}: Where are you?`, 'Tap to let them know'],
     };
+    if (r.kind === 'custom') {
+      return {
+        actor: r.from_user,
+        msg: { title: `${r.emoji || '💌'} ${who}: ${r.text || 'Love note'}`, body: 'Tap to send a heart back', tag: `nudge-${r.household_id}-custom-${r.note_id}`, url: '/?tab=plans&nudge=1', kind: 'nudge' },
+      };
+    }
     const kind = NOTES[r.kind] ? r.kind : 'heart';
     const [title, body] = NOTES[kind];
     return {

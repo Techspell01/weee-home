@@ -12,7 +12,7 @@
 | **Profile photos** | Add a photo in Settings. It shows on the Plans card, beside your messages in Chat and on the "thinking of you" heart. Photos are cropped to a square, stored in a private bucket and only visible to people in your household. |
 | **Shopping list** | Type `2 kg rice, milk, 6 eggs` and it splits into items with quantities, grouped by shop section. Star what's needed today and tick items off at the shop. After a trip, log what it cost. |
 | **Countdowns** | Big-number tiles on Discover ("12 days · Goa trip"). Anniversaries and birthdays repeat every year and show which one it is ("3rd"); on the day the tile glows and both phones get a 9 am notification. |
-| **Love notes** | One tap on the home screen sends 💗 Thinking of you, ❤️ I love you, 🥺 I miss you or 📍 Where are you? (the heart is also in the chat box). Your partner gets a notification with a heartbeat vibration, or a full-screen moment if Weee is open, with "Love you too" / "Miss you too". "Where are you?" offers quick answers (On my way, At home, At work…) or a one-off map link of where they are right now, sent into the chat. |
+| **Love notes** | One tap on the home screen sends 💗 Thinking of you, ❤️ I love you, 🥺 I miss you or 📍 Where are you? (the heart is also in the chat box). Your partner gets a notification with a heartbeat vibration, or a full-screen moment if Weee is open, with "Love you too" / "Miss you too". "Where are you?" offers quick answers (On my way, At home, At work…) or a one-off map link of where they are right now, sent into the chat. Tap **+** to add your own notes (a nickname, "Good night 🌙", up to 8 each, only visible to the two of you), and each button shows how many times you've sent it. |
 | **Tracker** | Things to follow up on, like job applications (Applied → Followed up → Interview → Offer / Rejected) or anything else. Set a reminder date and time, optionally repeating every few days; Weee sends a push notification at that time even when the app is closed. Log each follow-up with a note, snooze, archive. Private by default, or shared with your partner. |
 | **Chat** | A private chat with "typing…", sent/delivered/seen ticks, double-tap ❤️ and emoji reactions, swipe-to-reply with quotes, pinned messages, tappable links (map links show as "Open in Maps"), delete for me / unsend / clear chat, and push notifications. |
 | **Running low** | Every bought item is tracked. Weee starts with a sensible guess (milk ≈ 2 days, rice ≈ 30 days), learns your real rhythm from the gaps between purchases, and shows **"Only a few left"** on the shopping list before you run out. |
@@ -87,7 +87,9 @@ Then store the function URL and webhook secret in Supabase Vault as `notify_func
 | `expenses` | amount, category, payer, who it's split between, settle-ups |
 | `push_subscriptions` | which devices get notifications |
 | `countdowns` | title, date, repeats yearly |
-| `nudges` | love notes: `kind` is heart, love, miss or where (kept 30 days, one every 3 seconds) |
+| `nudges` | love notes: `kind` is heart, love, miss, where or custom (kept 30 days, one every 3 seconds); a custom note's words are copied from the sender's saved note by the database |
+| `love_notes` | each person's own notes: emoji and text, up to 8 each |
+| `note_counts` | how many times each person has sent each note, kept up to date by a trigger |
 | `message_reactions` | one emoji reaction per person per message |
 | `trackers` | follow-ups: kind, title, details, link, status, next reminder time, repeat, follow-up log; private unless shared |
 | `messages` | household chat (latest 300 loaded); `household_members.chat_read_at` powers unread counts and "Seen" |

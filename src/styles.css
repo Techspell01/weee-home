@@ -935,3 +935,32 @@ body.sheet-open .tabs { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
   .big-emoji, .note-where .big-emoji, .note-btn.sent .note-emoji { animation: none; }
 }
+
+/* ---------- love notes: counts, your own, the add sheet ---------- */
+.note-btn { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.note-count { min-height: 14px; margin-top: -3px; font-size: 11px; font-weight: 600; color: var(--faint, #6b6b73); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.note-custom .note-emoji { background: rgba(255, 255, 255, 0.08); }
+.note-add { background: transparent; border-style: dashed; border-color: rgba(255, 255, 255, 0.16); color: var(--muted); }
+.note-add .note-emoji { background: rgba(255, 255, 255, 0.05); color: var(--fg); }
+.note-add .note-emoji svg { width: 18px; height: 18px; }
+.note-emoji.small { width: 40px; height: 40px; font-size: 20px; }
+.heart-from { margin-top: -10px; color: var(--muted); font-size: 16px; font-weight: 600; }
+
+.note-preview {
+  display: grid; justify-items: center; gap: 8px; padding: 18px 12px; border-radius: 24px; text-align: center;
+  background: radial-gradient(120% 120% at 50% 0%, rgba(255, 92, 122, 0.12), transparent 60%), rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+}
+.note-preview-emoji { font-size: 44px; line-height: 1; }
+.note-preview-text { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.emoji-pick { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.emoji-opt {
+  aspect-ratio: 1; display: grid; place-items: center; font-size: 22px; border-radius: 14px; cursor: pointer; padding: 0;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line);
+}
+.emoji-opt[aria-checked="true"] { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.5); }
+.emoji-own {
+  aspect-ratio: 1; width: 100%; min-width: 0; padding: 0; text-align: center; font: inherit; font-size: 13px; color: var(--fg);
+  border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+.emoji-own:not(:placeholder-shown) { font-size: 22px; background: rgba(255, 255, 255, 0.14); border-style: solid; border-color: rgba(255, 255, 255, 0.5); }
